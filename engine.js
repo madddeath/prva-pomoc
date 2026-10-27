@@ -7,9 +7,11 @@ const lvMax=(a,b)=>LV.indexOf(a)>=LV.indexOf(b)?a:b;
 const clamp=p=>Math.min(.99,Math.max(.01,p));
 const F=KB.FIND,V=KB.VARS,C=KB.COND;
 /* váhy môžu závisieť od veku: c.eva = {child:{...}, senior:{...}} */
-function pf(c,f){const ag=S&&S.dx&&S.dx.A.age;const o=c.eva&&ag&&c.eva[ag];
+function pf(c,f){const ag=S&&S.dx&&S.dx.A.age;const o=c.eva&&ag&&(c.eva[ag]||(ag==='infant'&&c.eva.child));
  if(o&&o[f]!==undefined)return clamp(o[f]);return clamp(c.ev[f]!==undefined?c.ev[f]:F[f].q)}
-function pv(c,v,val){const X=V[v];const i=X.vals.findIndex(x=>x[0]===val);const arr=(c.vars&&c.vars[v])||X.base;const s=arr.reduce((a,b)=>a+b,0);return clamp(arr[i]/s)}
+function pv(c,v,val){const X=V[v];const i=X.vals.findIndex(x=>x[0]===val);let arr=(c.vars&&c.vars[v])||X.base;
+ if(v==='age'&&arr.length===4)arr=[arr[0]*.3,arr[0]*.7,arr[1],arr[2],arr[3]]; // staré 4-hodnotové váhy: dieťa → dojča + dieťa
+const s=arr.reduce((a,b)=>a+b,0);return clamp(arr[i]/s)}
 function urgOf(c,A){return typeof c.urg==='function'?c.urg(A):c.urg}
 /* posterior: Bayes nad všetkými stavmi */
 function postVec(A){
@@ -40,7 +42,7 @@ function pickNext(){
   const sc=igBool(Pf,f)+1.0*urgRel(P,A,f)+prioOf(F[f],A)-((D.soft&&D.soft[f])?.12:0);
   if(sc>bs){bs=sc;best={kind:'bool',id:f,sc}}
   if(F[f].rf&&F[f].req&&(!rf||sc>rf.sc))rf={kind:'bool',id:f,sc}}
- for(const v in V){if(v==='age'||!eligible(v,true))continue;const sc=igVar(Pf,v)+prioOf(V[v],A);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
+ for(const v in V){if(v==='age'||v==='sex'||!eligible(v,true))continue;const sc=igVar(Pf,v)+prioOf(V[v],A);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
  if(!best)return null;
  const top=Math.max(...P),maxQ=16+D.extra;
  if(best.sc<2){ // prio>=2 = vynútená otázka

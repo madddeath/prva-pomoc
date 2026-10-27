@@ -71,6 +71,20 @@ CH3:{type:'alert',step:'Dusenie',ico:'✋',t:'5 úderov do chrbta, potom 5 stla�
 CH4:{type:'alert',step:'Po dusení',ico:'🩺',t:'Nechaj ho skontrolovať lekárom',call:'none',
  q:'Ak boli potrebné stlačenia brucha alebo ak pretrváva kašeľ, bolesť alebo ťažkosti s prehĺtaním či dýchaním, musí ho ešte dnes vyšetriť lekár (stlačenia môžu spôsobiť vnútorné poranenie).',
  opts:[{l:'Rozumiem – vyhodnotiť',ico:'🏁',go:'DXR',set:S=>{S.dx.chokeDone=true},kw:['rozumiem','vyhodnotit']}]},
+S1:{step:'Krok 1',ico:'🗣️',t:'Reaguje, keď ho oslovíš?',
+ q:'Nahlas ho osloviť („Haló, počujete ma?") a jemne mu zatriasť ramenami.',hint:'Najprv sa rozhliadni, či je miesto bezpečné (doprava, elektrina, plyn, oheň).',
+ opts:[{l:'Áno, komunikuje normálne',ico:'🙂',f:'Pri vedomí, komunikuje',go:'S2',set:S=>{S.scen='Pri vedomí'},kw:['ano','normalne','komunikuje']},
+  {l:'Reaguje, ale je zmätený alebo mrmle',ico:'😵‍💫',f:'Pri vedomí, zmätený',go:'S2',set:S=>{S.scen='Pri vedomí, zmätený';S.dx.A.confusion=true},kw:['zmateny','mrmle']},
+  {l:'Je spavý, ťažko ho prebudím, len stoná',ico:'😴',f:'Porucha vedomia – spavý / reaguje len na bolesť',go:'S2',set:S=>{S.scen='Porucha vedomia';S.dx.A.drowsy=true},kw:['spavy','prebudim','stona']},
+  {l:'Nereaguje vôbec',ico:'😶',f:'Nereaguje na oslovenie ani zatrasenie',flag:'unresp',go:'L3',set:S=>{S.scen='Bezvedomie';S.dx.mode='obs'},kw:['nereaguje','vobec']},
+  {l:'Miesto nie je bezpečné',ico:'⛔',cls:'ghost',alert:'danger',go:'S1',f:'Nebezpečné prostredie na mieste',kw:['nebezpecne','bezpecne']}]},
+S2:{step:'Krok 2',ico:'⚠️',t:'Ohrozuje ho niečo práve teraz?',
+ opts:[{l:'Dusí sa – nevie dýchať ani hovoriť',ico:'😮',go:'CH1',set:S=>{S.scen+=' · dusenie'},kw:['dusi','dusenie','zaskocilo']},
+  {l:'Silno krváca',ico:'🩸',go:'DX',set:S=>{S.dx.A.bleeding_heavy=true;S.scen+=' · krvácanie'},kw:['krvaca']},
+  {l:'Má práve kŕče',ico:'⚡',go:'DX',set:S=>{S.dx.A.seizure=true;S.scen+=' · kŕče'},kw:['krce']},
+  {l:'Ťažko dýcha',ico:'😮‍💨',go:'DX',set:S=>{S.dx.A.dyspnea=true;S.scen+=' · dýchavica'},kw:['dycha','tazko']},
+  {l:'Nič z toho',ico:'➜',cls:'primary',go:'DX',kw:['nic','nie','dalej']}]},
+ONSET:{step:'Začiatok ťažkostí',ico:'🕐',t:'Kedy bol naposledy úplne v poriadku?',q:'Pri mozgovej príhode a úrazoch je tento čas pre lekárov veľmi dôležitý.',opts:onsetOpts('DX')},
 DX:{type:'dx'},
 DXR:{type:'dxr'}
 };
@@ -79,7 +93,7 @@ Object.entries(KB.ALERTS).forEach(([k,a])=>{
  const opts=[{l:a.cont||(num==='none'?'Pokračovať':('Volám / volal som '+(num==='0254774166'?'':num+' ')+'– pokračovať').replace('  ',' ')),ico:'➜',cls:'primary',go:S=>S.after||'DX',
   set:S=>{if(num==='155'||num==='112')logCall(num)},kw:['pokracovat','pokracuj','dalej','volam','volal']}];
  if(k==='unc')opts.push({l:'Prestal dýchať',ico:'🚫',flag:'cardiac',f:'Prestal dýchať',go:'CPR',cls:'danger',kw:['prestal','nedycha']});
- N['AL_'+k]={type:'alert',step:'Dôležité',ico:a.ico,t:a.t,q:a.q,call:num,callLabel:a.callLabel,also155:k==='poison',opts};
+ N['AL_'+k]={type:'alert',step:'Dôležité',ico:a.ico,t:a.t,q:a.q,call:num,callLabel:a.callLabel,also155:k==='poison',call2:a.call2,call2Label:a.call2Label,opts};
 });
 
 /* =====================================================================
@@ -90,7 +104,9 @@ function summaryText(){
  let s=`SÚHRN PRE ZÁCHRANKU / LEKÁRA\n${d.toLocaleDateString('sk-SK')} ${tm()}\n`;
  s+=`Situácia: ${S.scen||'–'}\n`;
  const age=S.dx.A.age&&S.dx.A.age!=='?'?V.age.vals.find(x=>x[0]===S.dx.A.age)[1]:'';
- const p=[S.patient.sex,age].filter(Boolean).join(', ');if(p)s+=`Pacient: ${p}\n`;
+ const sx=S.dx.A.sex&&S.dx.A.sex!=='?'?V.sex.vals.find(x=>x[0]===S.dx.A.sex)[1]:'';
+ const p=[sx,age].filter(Boolean).join(', ');if(p)s+=`Pacient: ${p}\n`;
+ const vit=[S.dx.A.bp&&S.dx.A.bp!=='?'?'TK '+V.bp.vals.find(x=>x[0]===S.dx.A.bp)[1]:'',S.dx.A.pulse&&S.dx.A.pulse!=='?'?'pulz '+V.pulse.vals.find(x=>x[0]===S.dx.A.pulse)[1]:'',S.dx.A.glu&&S.dx.A.glu!=='?'?'glykémia '+V.glu.vals.find(x=>x[0]===S.dx.A.glu)[1]:''].filter(Boolean).join(', ');if(vit)s+=`Namerané: ${vit}\n`;
  if(S.onsetTxt)s+=`Naposledy v poriadku: ${S.onsetTxt.toLowerCase()}\n`;
  const Fd=S.log.filter(x=>x.k==='f'),Ad=S.log.filter(x=>x.k==='a');
  const yes=Fd.filter(x=>!/: nie$|: nevie$/.test(x.txt)),no=Fd.filter(x=>/: nie$/.test(x.txt));
@@ -199,6 +215,7 @@ function renderQ(n){
  const w=el('div',n.type==='alert'?'alert':'');head(n,w);const box=el('div','opts');
  if(n.call&&n.call!=='none')box.append(callBtn(n.call,n.callLabel));
  if(n.also155)box.append(callBtn('155'));
+ if(n.call2)box.append(callBtn(n.call2,n.call2Label));
  n.opts.forEach((o,i)=>{const act=()=>choose(n,o);box.append(optBtn(o,i,act));reg(o,i,act)});
  w.append(box);app.append(w);
 }
@@ -216,6 +233,8 @@ function renderDX(){
  const D=S.dx,A=D.A;
  for(const r of safety(A))if(r.alert&&!S.alerts.includes(r.alert)){S.alerts.push(r.alert);S.after='DX';show('AL_'+r.alert);return}
  if(A.age===undefined)return renderVar('age');
+ if(A.sex===undefined)return renderVar('sex');
+ if(!S.onset){S.onset=true;show('ONSET');return}
  if(!D.mainDone)return renderMain();
  const nx=pickNext();if(!nx){show('DXR');return}
  nx.kind==='var'?renderVar(nx.id):renderBool(nx.id);
@@ -242,7 +261,7 @@ function renderBool(f){
 }
 function renderVar(v){
  const X=V[v];CURQ={say:X.ask};
- const w=qWrap(X.ico,v==='age'?'Úvod':`Otázka ${S.dx.n+1}`,X.ask);
+ const w=qWrap(X.ico,(v==='age'||v==='sex')?'Krok 3 · Kto to je':`Otázka ${S.dx.n+1}`,X.ask);
  const box=el('div','opts');
  X.vals.forEach(([val,lab],i)=>{const o={l:lab,ico:'•'};const act=()=>answer(v,val,X.t+': '+lab);box.append(optBtn(o,i,act));reg(o,i,act)});
  const sk={l:X.skip||'Neviem',ico:'❓',kw:['neviem','nemam']};
@@ -253,13 +272,18 @@ function renderVar(v){
 function renderMain(){
  CURQ={say:'Čo pozoruješ? Označ všetko, čo platí, a potom povedz hotovo.'};
  const A=S.dx.A;
- const w=qWrap('🔎','Hlavné ťažkosti','Čo pozoruješ?','Označ všetko, čo platí. Čo neoznačíš, beriem, že to nemá. Na ostatné sa opýtam postupne.');
- const box=el('div','opts'),sel=new Set(KB.MAIN.filter(f=>A[f]===true));
- KB.MAIN.forEach((f,i)=>{const X=F[f];const b=optBtn({l:X.t,ico:X.ico},i,()=>tog());if(sel.has(f))b.classList.add('sel');
-  const tog=()=>{sel.has(f)?sel.delete(f):sel.add(f);b.classList.toggle('sel',sel.has(f))};b.onclick=tog;box.append(b);
-  reg({l:X.t,kw:[X.t.split(' ')[0]]},i,()=>{tog();toast((sel.has(f)?'Označené: ':'Odznačené: ')+X.t)})});
- const done=()=>{pushHist();KB.MAIN.forEach(f=>{if(sel.has(f)){if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}}else if(A[f]===undefined&&(S.dx.mode!=='obs'||F[f].obs)){A[f]=false;(S.dx.soft=S.dx.soft||{})[f]=true}});S.dx.mainDone=true;show('DX')};
- const d=optBtn({l:'Hotovo',ico:'➜'},-1,done);d.classList.add('primary');box.append(d);
+ const w=qWrap('🔎','Krok 4 · Príznaky','Čo pozoruješ?','Označ všetko, čo platí. Čo neoznačíš, beriem, že to nemá – na dôležité sa ešte opýtam.');
+ const sel=new Set(KB.MAIN.filter(f=>A[f]===true));let i=0;const shown=[];
+ KB.MAIN_GROUPS.forEach(([title,items])=>{
+  const vis=items.filter(f=>{const X=F[f];if(S.dx.mode==='obs'&&!X.obs)return false;try{return !X.req||X.req(A)||A[f]===true}catch(e){return true}});
+  if(!vis.length)return;
+  w.append(el('div','grp',esc(title)));const box=el('div','opts grid2');
+  vis.forEach(f=>{const X=F[f];const n=i++;shown.push(f);const b=optBtn({l:X.t,ico:X.ico},n,()=>tog());if(sel.has(f))b.classList.add('sel');
+   const tog=()=>{sel.has(f)?sel.delete(f):sel.add(f);b.classList.toggle('sel',sel.has(f))};b.onclick=tog;box.append(b);
+   reg({l:X.t,kw:[X.t.split(' ')[0]]},n,()=>{tog();toast((sel.has(f)?'Označené: ':'Odznačené: ')+X.t)})});
+  w.append(box)});
+ const done=()=>{pushHist();shown.forEach(f=>{if(sel.has(f)){if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}}else if(A[f]===undefined){A[f]=false;(S.dx.soft=S.dx.soft||{})[f]=true}});S.dx.mainDone=true;show('DX')};
+ const box=el('div','opts');const d=optBtn({l:'Hotovo',ico:'➜'},-1,done);d.classList.add('primary');box.append(d);
  CUR.push({kw:['hotovo','dalej','nic z toho','pokracovat'],i:-1,act:done});
  w.append(box);app.append(w);
 }
@@ -316,24 +340,23 @@ function renderResult(){
 
 /* ---------- štart ---------- */
 function renderStart(){
- const w=el('div');w.append(el('h1','','Čo sa deje?'));
- w.append(el('p','small','Vyber situáciu. Sprievodca sa bude pýtať, ty len klikáš (alebo odpovedáš hlasom).'));
+ const w=el('div');w.append(el('h1','','Sprievodca prvej pomoci'));
+ w.append(el('p','q','Prevediem ťa krok za krokom: zistíme, v akom je stave, čo treba urobiť hneď a či volať 155.'));
  const box=el('div','opts');
- [{l:'Niekto leží, nereaguje alebo je dezorientovaný',ico:'🧍',go:'L1',scen:'Nájdená ležiaca / dezorientovaná osoba',kw:['lezi','nereaguje','dezorientovany','lezaci']},
-  {l:'Blízky sa nezdá – zmätený, slabý, mrmle',ico:'👵',go:'B0',scen:'Zmena stavu blízkej osoby',kw:['nezda','babka','zmateny','mrmle','slaby']},
-  {l:'Bolesť na hrudi alebo ťažko dýcha',ico:'💔',go:'DX',scen:'Bolesť na hrudi / dýchavica',kw:['hrudi','hrud','dycha','srdce','infarkt']},
-  {l:'Kŕče',ico:'⚡',go:'DX',scen:'Kŕče',pre:{seizure:true},kw:['krce','kric']},
-  {l:'Dusí sa / zaskočilo mu',ico:'😮',go:'CH1',scen:'Dusenie cudzím telesom',kw:['dusi','zaskocilo','dusenie']},
-  {l:'Úraz alebo pád',ico:'🩹',go:'B0',scen:'Úraz / pád',kw:['uraz','pad','spadol']}]
- .forEach((o,i)=>{const act=()=>{speak('');choose(N.START,{...o,set:S=>{S.scen=o.scen;if(o.pre)Object.assign(S.dx.A,o.pre)}})};box.append(optBtn(o,i,act));reg(o,i,act)});
- w.append(box);
+ const act=()=>{speak('');choose(N.START,{go:'S1'})};
+ box.append(optBtn({l:'Začať',ico:'▶',cls:'primary'},0,act));reg({l:'zacat',kw:['zacat','start','zacni']},0,act);
+ box.append(callBtn('155'));w.append(box);
  w.append(el('div','card',`<h2>Ako to funguje</h2><ul class="list small">
-  <li>Najprv overí to najdôležitejšie (bezpečnosť, vedomie, dýchanie).</li>
-  <li>Potom sa pýta otázky, ktoré najlepšie rozlíšia možné príčiny – každá odpoveď prepočíta pravdepodobnosti.</li>
+  <li>Najprv overí to najdôležitejšie: vedomie, dýchanie, bezprostredné ohrozenie.</li>
+  <li>Potom sa opýta, kto to je (vek, pohlavie), kedy to začalo a čo pozoruješ.</li>
+  <li>Ďalej kladie otázky, ktoré najlepšie rozlíšia možné príčiny – každá odpoveď prepočíta pravdepodobnosti.</li>
   <li>Pri vážnom zistení hneď ukáže, čo robiť, a tlačidlo na 155. Otázky môžeš dokončiť počas čakania.</li>
   <li>Na konci: odporúčanie, možné príčiny a <b>súhrn pre záchranku / lekára</b>.</li></ul>
   <p class="small">Databáza: ${KB.COND.length-1} stavov, ${Object.keys(KB.FIND).length} príznakov, ${KB.SAFETY.length} bezpečnostných pravidiel.</p>
   <p class="small"><span class="tag">PROTOTYP ${esc(KB.version)}</span>Nie je to zdravotnícka pomôcka ani diagnóza a obsah zatiaľ neskontroloval lekár. Pri akejkoľvek pochybnosti volaj <b>155</b>.</p>`));
+ const rc=el('div','card');rc.append(el('h2','','📚 Zdroje'));
+ const ul=el('ul','list small');Object.values(KB.REFS).forEach(r=>{const li=el('li','');li.innerHTML=r.u?`<a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.t)}</a>`:esc(r.t);ul.append(li)});
+ rc.append(ul);w.append(rc);
  app.append(w);
 }
 
@@ -380,9 +403,6 @@ function showSummary(){
  w.append(el('div','step','<span class="big">📋</span><span>Súhrn</span>'));
  w.append(el('h1','','Súhrn pre záchranku / lekára'));
  const pre=el('pre','sum');
- const d=el('div','chips');['muž','žena'].forEach(v=>{const b=el('button','chip'+(S.patient.sex===v?' sel':''),v);
-  b.onclick=()=>{S.patient.sex=S.patient.sex===v?'':v;[...d.children].forEach(x=>x.classList.toggle('sel',x.textContent===S.patient.sex));pre.textContent=summaryText()};d.append(b)});
- w.append(el('p','small','Doplň, ak vieš (nepovinné):'),d);
  pre.textContent=summaryText();w.append(pre);
  const box=el('div','opts');
  [{l:'Kopírovať text',ico:'📄',cls:'primary',run:()=>copyText(summaryText()),kw:['kopirovat']},
