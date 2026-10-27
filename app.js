@@ -405,4 +405,4 @@ $('#bMic').onclick=()=>{
 };
 document.querySelectorAll('[data-call]').forEach(a=>a.addEventListener('click',()=>{logCall(a.dataset.call);toast('Ak sa hovor nespustil, vytoč '+a.dataset.call+' ručne')}));
 show('START');
-try{if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')}catch(e){}
+try{if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update())}catch(e){}
