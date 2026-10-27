@@ -23,64 +23,6 @@ function pushHist(){S.hist.push(snap())}
 function back(){if(!S.hist.length){toast('Si na začiatku');return}const h=S.hist;const st=JSON.parse(h.pop());S={...st,hist:h};show(S.node)}
 
 /* =====================================================================
-   DIAGNOSTICKÉ JADRO
-   ===================================================================== */
-const LV=['green','yellow','orange','red'];
-const lvMax=(a,b)=>LV.indexOf(a)>=LV.indexOf(b)?a:b;
-const clamp=p=>Math.min(.99,Math.max(.01,p));
-const F=KB.FIND,V=KB.VARS,C=KB.COND;
-function pf(c,f){return clamp(c.ev[f]!==undefined?c.ev[f]:F[f].q)}
-function pv(c,v,val){const X=V[v];const i=X.vals.findIndex(x=>x[0]===val);const arr=(c.vars&&c.vars[v])||X.base;const s=arr.reduce((a,b)=>a+b,0);return clamp(arr[i]/s)}
-function urgOf(c,A){return typeof c.urg==='function'?c.urg(A):c.urg}
-/* posterior: Bayes nad všetkými stavmi */
-function postVec(A){
- const l=C.map(c=>{let s=Math.log(c.prior);
-  for(const f in F){if(A[f]===true)s+=Math.log(pf(c,f));else if(A[f]===false)s+=Math.log(1-pf(c,f))}
-  for(const v in V){if(A[v]&&A[v]!=='?')s+=Math.log(pv(c,v,A[v]))}
-  return s});
- const m=Math.max(...l),e=l.map(x=>Math.exp(x-m)),z=e.reduce((a,b)=>a+b,0);return e.map(x=>x/z);
-}
-function ranked(A){const P=postVec(A);return C.map((c,i)=>({c,p:P[i]})).sort((a,b)=>b.p-a.p)}
-const H=ps=>{let h=0;for(const p of ps)if(p>1e-12)h-=p*Math.log2(p);return h};
-function igBool(P,f){let py=0;const y=[],n=[];C.forEach((c,i)=>{const p=pf(c,f);y[i]=P[i]*p;n[i]=P[i]*(1-p);py+=y[i]});
- const pn=1-py;return H(P)-(py*H(y.map(x=>x/py))+pn*H(n.map(x=>x/pn)))}
-function igVar(P,v){let e=0,tot=0;const parts=V[v].vals.map(([val])=>{const w=C.map((c,i)=>P[i]*pv(c,v,val));const s=w.reduce((a,b)=>a+b,0);tot+=s;return{w,s}});
- parts.forEach(({w,s})=>{e+=(s/tot)*H(w.map(x=>x/s))});return H(P)-e}
-/* relevancia pre naliehavé stavy – aby sa nezabudlo na otázky, ktoré rozhodujú o 155 */
-function urgRel(P,A,f){let r=0;C.forEach((c,i)=>{if(urgOf(c,A)==='red')r+=P[i]*Math.abs(pf(c,f)-F[f].q)});return r}
-function eligible(id,isVar){const D=S.dx,A=D.A;if(D.asked.includes(id)||A[id]!==undefined)return false;
- const X=isVar?V[id]:F[id];if(D.mode==='obs'&&!X.obs)return false;if(X.req&&!X.req(A))return false;return true}
-function pickNext(){
- const D=S.dx,A=D.A,P=postVec(A);
- let best=null,bs=-1;
- for(const f in F){if(!eligible(f,false))continue;const sc=igBool(P,f)+.6*urgRel(P,A,f)+(F[f].prio||0);if(sc>bs){bs=sc;best={kind:'bool',id:f,sc}}}
- for(const v in V){if(v==='age'||!eligible(v,true))continue;const sc=igVar(P,v)+(V[v].prio||0);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
- if(!best)return null;
- const top=Math.max(...P),maxQ=14+D.extra;
- if(best.sc<2){ // prio>=2 = vynútená otázka
-  if(D.n>=maxQ)return null;
-  if(D.n>=4&&top>.8)return null;
-  if(D.n>=3&&best.sc<.03)return null;
- }
- return best;
-}
-function safety(A){const out=[];KB.SAFETY.forEach(r=>{try{if(r.when(A,S)){out.push({...r,u:typeof r.urg==='function'?r.urg(A):r.urg})}}catch(e){}});return out}
-function verdict(){
- const A=S.dx.A,R=ranked(A),sf=safety(A);
- let lv='green';sf.forEach(r=>lv=lvMax(lv,r.u));
- R.forEach(({c,p})=>{if(c.id==='other')return;const u=urgOf(c,A);if(p>=.25||(u==='red'&&p>=.15))lv=lvMax(lv,u)});
- return{lv,R,sf};
-}
-function reasons(c,A){const pro=[],con=[];
- for(const f in F){if(A[f]===true){const lr=pf(c,f)/F[f].q;if(lr>=2)pro.push(F[f].t);else if(lr<=.5)con.push(F[f].t)}
-  else if(A[f]===false){const lr=(1-pf(c,f))/(1-F[f].q);if(lr<=.6)con.push('nie je: '+F[f].t.toLowerCase())}}
- for(const v in V){const val=A[v];if(!val||val==='?')continue;const X=V[v];const lab=X.vals.find(x=>x[0]===val)[1];
-  const i=X.vals.findIndex(x=>x[0]===val);const b=X.base[i]/X.base.reduce((a,b)=>a+b,0);const lr=pv(c,v,val)/b;
-  if(lr>=2)pro.push(X.t+': '+lab);else if(lr<=.4)con.push(X.t+': '+lab)}
- return{pro,con};
-}
-
-/* =====================================================================
    OBSAH TOKU (primárne vyšetrenie zostáva pevný protokol)
    ===================================================================== */
 const onsetOpts=next=>[
@@ -114,6 +56,21 @@ B1:{step:'Vedomie',ico:'🗣️',t:'Ako reaguje, keď sa mu prihovoríš?',
  opts:[{l:'Je hore a komunikuje',ico:'🙂',f:'Pri vedomí, komunikuje',go:'DX',kw:['komunikuje','hore','hovori']},
   {l:'Spavý, ťažko sa prebúdza',ico:'😴',f:'Spavý, ťažko prebuditeľný',set:S=>{S.dx.A.drowsy=true},go:'DX',kw:['spavy','prebudza','spi']},
   {l:'Nereaguje',ico:'😶',f:'Nereaguje na oslovenie',flag:'unresp',set:S=>{S.dx.mode='obs'},go:'L3',kw:['nereaguje']}]},
+CH1:{step:'Dusenie (dospelý / dieťa nad 1 rok)',ico:'😮',t:'Dokáže kašľať alebo hovoriť?',
+ q:'Opýtaj sa: „Dusíte sa?" Ak kašle, je to dobré – kašeľ je najúčinnejší.',
+ opts:[{l:'Áno, kašle / hovorí',ico:'🗣️',f:'Dusenie – účinný kašeľ',go:'CH2',kw:['ano','kasle','hovori']},
+  {l:'Nie – nevie kašľať, hovoriť ani dýchať',ico:'🚫',f:'Dusenie – neúčinný kašeľ',go:'CH3',kw:['nie','nevie','nedycha']},
+  {l:'Stratil vedomie',ico:'😶',f:'Dusenie – strata vedomia',flag:'unresp cardiac',go:'CPR',kw:['stratil','vedomie','nereaguje']}]},
+CH2:{step:'Dusenie',ico:'🗣️',t:'Povzbudzuj ho, nech kašle',q:'Nič nerob, len ho povzbudzuj ku kašľu a buď pri ňom. Ak prestane kašľať alebo nemôže dýchať, prejdi na údery do chrbta.',
+ opts:[{l:'Vykašľal to, dýcha normálne',ico:'✅',a:'Cudzie teleso vykašľané',go:'CH4',kw:['vykaslal','dycha']},
+  {l:'Kašeľ slabne, nevie dýchať',ico:'🚫',f:'Kašeľ zoslabol',go:'CH3',kw:['slabne','nevie']}]},
+CH3:{type:'alert',step:'Dusenie',ico:'✋',t:'5 úderov do chrbta, potom 5 stlačení brucha',call:'155',
+ q:'Volaj 155 (hlasitý odposluch). Predkloň ho a daj 5 silných úderov dlaňou medzi lopatky. Ak to nepomôže, postav sa za neho, päsť nad pupok, druhou rukou ju chyť a 5× prudko zatlač dovnútra a hore. Striedaj 5 úderov a 5 stlačení. Ak stratí vedomie → resuscitácia.',
+ opts:[{l:'Uvoľnilo sa, dýcha',ico:'✅',a:'Údery do chrbta / stlačenia brucha – uvoľnené',go:'CH4',kw:['uvolnilo','dycha']},
+  {l:'Stratil vedomie',ico:'😶',a:'Strata vedomia pri dusení',flag:'unresp cardiac',go:'CPR',kw:['stratil','vedomie']}]},
+CH4:{type:'alert',step:'Po dusení',ico:'🩺',t:'Nechaj ho skontrolovať lekárom',call:'none',
+ q:'Ak boli potrebné stlačenia brucha alebo ak pretrváva kašeľ, bolesť alebo ťažkosti s prehĺtaním či dýchaním, musí ho ešte dnes vyšetriť lekár (stlačenia môžu spôsobiť vnútorné poranenie).',
+ opts:[{l:'Rozumiem – vyhodnotiť',ico:'🏁',go:'DXR',set:S=>{S.dx.chokeDone=true},kw:['rozumiem','vyhodnotit']}]},
 DX:{type:'dx'},
 DXR:{type:'dxr'}
 };
@@ -248,7 +205,7 @@ function renderQ(n){
 
 /* ---------- adaptívne otázky ---------- */
 function answer(id,val,label){
- pushHist();const D=S.dx;D.A[id]=val;D.asked.push(id);if(D.mainDone&&id!=='age')D.n++;
+ pushHist();const D=S.dx;D.A[id]=val;D.asked.push(id);if(D.soft)delete D.soft[id];if(D.mainDone&&id!=='age')D.n++;
  addLog('f',label);show('DX');
 }
 function hypLine(){
@@ -278,7 +235,7 @@ function renderBool(f){
  const w=qWrap(X.ico,`Otázka ${S.dx.n+1}`+(S.dx.mode==='obs'?' · pozoruj':''),X.ask,X.hint);
  const box=el('div','opts');
  [{l:'Áno',ico:'✅',v:true,kw:['ano','hej','jo','ma','mal','je']},{l:'Nie',ico:'❌',v:false,kw:['nie','nema','nemal','neni']},{l:'Neviem',ico:'❓',v:'?',kw:['neviem','nevie','netusim']}]
-  .forEach((o,i)=>{const act=()=>{if(o.v==='?'){pushHist();S.dx.asked.push(f);S.dx.n++;addLog('f',X.t+': nevie');show('DX')}else answer(f,o.v,X.t+': '+(o.v?'áno':'nie'))};
+  .forEach((o,i)=>{const act=()=>{if(o.v==='?'){pushHist();S.dx.asked.push(f);S.dx.n++;if(S.dx.soft&&S.dx.soft[f]){delete S.dx.soft[f];delete S.dx.A[f]}addLog('f',X.t+': nevie');show('DX')}else answer(f,o.v,X.t+': '+(o.v?'áno':'nie'))};
    box.append(optBtn(o,i,act));reg(o,i,act)});
  finishBtn(box);w.append(box);app.append(w);
  if(listening)CURQ.say+='. Áno, nie, alebo neviem?';
@@ -296,12 +253,12 @@ function renderVar(v){
 function renderMain(){
  CURQ={say:'Čo pozoruješ? Označ všetko, čo platí, a potom povedz hotovo.'};
  const A=S.dx.A;
- const w=qWrap('🔎','Hlavné ťažkosti','Čo pozoruješ?','Označ všetko, čo platí. Na zvyšok sa opýtam postupne.');
+ const w=qWrap('🔎','Hlavné ťažkosti','Čo pozoruješ?','Označ všetko, čo platí. Čo neoznačíš, beriem, že to nemá. Na ostatné sa opýtam postupne.');
  const box=el('div','opts'),sel=new Set(KB.MAIN.filter(f=>A[f]===true));
  KB.MAIN.forEach((f,i)=>{const X=F[f];const b=optBtn({l:X.t,ico:X.ico},i,()=>tog());if(sel.has(f))b.classList.add('sel');
   const tog=()=>{sel.has(f)?sel.delete(f):sel.add(f);b.classList.toggle('sel',sel.has(f))};b.onclick=tog;box.append(b);
   reg({l:X.t,kw:[X.t.split(' ')[0]]},i,()=>{tog();toast((sel.has(f)?'Označené: ':'Odznačené: ')+X.t)})});
- const done=()=>{pushHist();sel.forEach(f=>{if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}});S.dx.mainDone=true;show('DX')};
+ const done=()=>{pushHist();KB.MAIN.forEach(f=>{if(sel.has(f)){if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}}else if(A[f]===undefined&&(S.dx.mode!=='obs'||F[f].obs)){A[f]=false;(S.dx.soft=S.dx.soft||{})[f]=true}});S.dx.mainDone=true;show('DX')};
  const d=optBtn({l:'Hotovo',ico:'➜'},-1,done);d.classList.add('primary');box.append(d);
  CUR.push({kw:['hotovo','dalej','nic z toho','pokracovat'],i:-1,act:done});
  w.append(box);app.append(w);
@@ -342,7 +299,7 @@ function renderResult(){
    card.append(row)});
   w.append(card);
   const top=R[0];if(top.c.id!=='other'&&top.p>=.25&&top.c.aid.length)
-   w.append(el('div','card',`<h2>🩹 Čo robiť pri: ${esc(top.c.name.toLowerCase())}</h2><ul class="list">${top.c.aid.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`));
+   w.append(el('div','card',`<h2>🩹 Čo robiť pri: ${esc(top.c.name.toLowerCase())}</h2><ul class="list">${top.c.aid.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="small">Zdroj: ${(top.c.src||[]).map(k=>KB.REFS[k]?esc(KB.REFS[k].t.split(' – ')[0]):'').filter(Boolean).join('; ')||'–'}</p>`));
  }
  const box=el('div','opts');
  if(lv==='red'||lv==='orange')box.append(callBtn('155'));
@@ -366,6 +323,7 @@ function renderStart(){
   {l:'Blízky sa nezdá – zmätený, slabý, mrmle',ico:'👵',go:'B0',scen:'Zmena stavu blízkej osoby',kw:['nezda','babka','zmateny','mrmle','slaby']},
   {l:'Bolesť na hrudi alebo ťažko dýcha',ico:'💔',go:'DX',scen:'Bolesť na hrudi / dýchavica',kw:['hrudi','hrud','dycha','srdce','infarkt']},
   {l:'Kŕče',ico:'⚡',go:'DX',scen:'Kŕče',pre:{seizure:true},kw:['krce','kric']},
+  {l:'Dusí sa / zaskočilo mu',ico:'😮',go:'CH1',scen:'Dusenie cudzím telesom',kw:['dusi','zaskocilo','dusenie']},
   {l:'Úraz alebo pád',ico:'🩹',go:'B0',scen:'Úraz / pád',kw:['uraz','pad','spadol']}]
  .forEach((o,i)=>{const act=()=>{speak('');choose(N.START,{...o,set:S=>{S.scen=o.scen;if(o.pre)Object.assign(S.dx.A,o.pre)}})};box.append(optBtn(o,i,act));reg(o,i,act)});
  w.append(box);
@@ -374,6 +332,7 @@ function renderStart(){
   <li>Potom sa pýta otázky, ktoré najlepšie rozlíšia možné príčiny – každá odpoveď prepočíta pravdepodobnosti.</li>
   <li>Pri vážnom zistení hneď ukáže, čo robiť, a tlačidlo na 155. Otázky môžeš dokončiť počas čakania.</li>
   <li>Na konci: odporúčanie, možné príčiny a <b>súhrn pre záchranku / lekára</b>.</li></ul>
+  <p class="small">Databáza: ${KB.COND.length-1} stavov, ${Object.keys(KB.FIND).length} príznakov, ${KB.SAFETY.length} bezpečnostných pravidiel.</p>
   <p class="small"><span class="tag">PROTOTYP ${esc(KB.version)}</span>Nie je to zdravotnícka pomôcka ani diagnóza a obsah zatiaľ neskontroloval lekár. Pri akejkoľvek pochybnosti volaj <b>155</b>.</p>`));
  app.append(w);
 }
