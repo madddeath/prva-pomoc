@@ -1,0 +1,231 @@
+/* =====================================================================
+   ZNALOSTNÁ BÁZA – Sprievodca prvej pomoci
+   verzia 0.2-demo (ukážková, NEOVERENÁ lekárom)
+
+   Princíp:
+   - FIND  = pozorovateľné príznaky (áno / nie / neviem).
+             q = ako často sa príznak vyskytuje "všeobecne" pri akútnych ťažkostiach.
+   - VARS  = viachodnotové údaje (vek, glykémia).
+   - COND  = možné stavy. ev[príznak] = ako často má človek s týmto stavom daný príznak
+             (0–1). Neuvedený príznak = rovnaký ako všeobecne (q).
+             Výpočet: Bayes (naivný) → pravdepodobnosť každého stavu.
+   - SAFETY= bezpečnostné pravidlá. Nezávisle od diagnózy určujú minimálnu
+             naliehavosť a spúšťajú okamžité pokyny (volaj 155...).
+   Zdroje pokynov: ERC Guidelines 2025 First Aid; postup TAPP (SUMMK ČLS JEP, ČRR);
+   NTIC UNB Bratislava (otravy). Váhy príznakov = hrubé odhady na overenie lekárom.
+   ===================================================================== */
+const KB = {
+version: '0.2-demo',
+
+/* ---------- PRÍZNAKY ---------- */
+FIND: {
+ seizure:{q:.07,t:'Kŕče',obs:1,ico:'⚡',ask:'Mal kŕče – zášklby celého tela, stŕpnutie?'},
+ seizure_long:{q:.25,t:'Kŕče dlhšie ako 5 min / opakované',obs:1,ico:'⏱️',ask:'Trvali kŕče dlhšie ako 5 minút alebo sa opakovali bez prebratia?',req:A=>A.seizure===true,prio:.4},
+ seizure_recovered:{q:.6,t:'Po kŕčoch sa preberá',obs:1,ico:'🙂',ask:'Preberá sa po kŕčoch – je s každou minútou viac pri sebe?',req:A=>A.seizure===true,prio:.4},
+ epilepsy_known:{q:.05,t:'Známa epilepsia',obs:1,ico:'💊',ask:'Má známu epilepsiu (berie lieky na epilepsiu)?'},
+ tongue_bite:{q:.05,t:'Pohryzený jazyk / pomočenie',obs:1,ico:'👅',ask:'Má pohryzený jazyk alebo sa pomočil?'},
+ confusion:{q:.2,t:'Zmätenosť / nezvyčajné správanie',obs:1,ico:'😵‍💫',ask:'Je zmätený, správa sa nezvyčajne alebo odpovedá nezmyselne?'},
+ confusion_sudden:{q:.4,t:'Zmena vznikla náhle',obs:1,ico:'⚡',ask:'Prišla táto zmena náhle – v priebehu minút až hodín?',req:A=>A.confusion===true||A.speech===true||A.face_droop===true||A.arm_weak===true,prio:.2},
+ face_droop:{q:.05,t:'Nesúmerná tvár',obs:1,ico:'😁',ask:'Je tvár nesúmerná? Nech sa usmeje – visí jeden kútik?',hint:'Test mozgovej príhody (FAST).'},
+ arm_weak:{q:.06,t:'Slabosť jednej ruky',obs:0,ico:'🙌',ask:'Nech zdvihne obe ruky pred seba na 10 sekúnd. Jedna klesá alebo ju nezdvihne?',hint:'Test mozgovej príhody (FAST).'},
+ speech:{q:.1,t:'Porucha reči / mrmle',obs:0,ico:'💬',ask:'Hovorí nezrozumiteľne, mrmle alebo používa zlé slová?',hint:'Nech zopakuje: „Dnes je pekný slnečný deň."'},
+ headache_sudden:{q:.05,t:'Náhla prudká bolesť hlavy',obs:0,ico:'🤯',ask:'Má náhlu, veľmi silnú bolesť hlavy – „najhoršiu v živote"?'},
+ chest_pain:{q:.15,t:'Bolesť / tlak na hrudi',obs:0,ico:'💔',ask:'Má bolesť, tlak alebo pálenie na hrudi?'},
+ chest_radiates:{q:.3,t:'Bolesť vyžaruje do ruky/krku/sánky/chrbta',obs:0,ico:'↗️',ask:'Vyžaruje bolesť do ruky, krku, sánky alebo chrbta?',req:A=>A.chest_pain===true},
+ chest_pleuritic:{q:.25,t:'Bolesť sa zhoršuje pri nádychu / stlačení',obs:0,ico:'🫁',ask:'Zhoršuje sa bolesť pri nádychu, kašli alebo pri stlačení hrudníka?',req:A=>A.chest_pain===true},
+ chest_burning_food:{q:.2,t:'Pálenie po jedle / v ľahu',obs:0,ico:'🍽️',ask:'Je to skôr pálenie po jedle alebo v ľahu, ktoré pozná ako pálenie záhy?',req:A=>A.chest_pain===true},
+ exertion:{q:.15,t:'Ťažkosti prišli pri námahe',obs:1,ico:'🏃',ask:'Prišli ťažkosti pri námahe (schody, šport, nosenie)?'},
+ dyspnea:{q:.15,t:'Ťažké dýchanie v pokoji',obs:1,ico:'😮‍💨',ask:'Dýcha sa mu ťažko aj v pokoji?'},
+ wheeze:{q:.1,t:'Pískanie pri dýchaní',obs:1,ico:'🎵',ask:'Počuť pri dýchaní pískanie alebo vŕzganie?'},
+ asthma_known:{q:.08,t:'Má astmu / CHOCHP',obs:1,ico:'🫁',ask:'Má astmu alebo CHOCHP (používa inhalátor)?'},
+ swelling_face:{q:.03,t:'Opuch pier/jazyka/tváre, žihľavka',obs:1,ico:'🫦',ask:'Má opuchnuté pery, jazyk alebo tvár, prípadne žihľavku?'},
+ allergen:{q:.05,t:'Kontakt s alergénom',obs:1,ico:'🐝',ask:'Bol pred chvíľou bodnutý hmyzom, zjedol niečo nové alebo užil nový liek?'},
+ leg_swelling:{q:.05,t:'Opuchnutá noha / dlhá nehybnosť',obs:1,ico:'🦵',ask:'Má opuchnutú bolestivú jednu nohu, alebo bol nedávno dlho nehybný (operácia, dlhá cesta)?'},
+ sweat:{q:.12,t:'Bledý, studený pot',obs:1,ico:'💧',ask:'Je bledý, studený a spotený?'},
+ vomiting:{q:.12,t:'Zvracanie',obs:1,ico:'🤢',ask:'Zvracia alebo zvracal?'},
+ fever:{q:.12,t:'Horúčka / horúci na dotyk',obs:1,ico:'🌡️',ask:'Má horúčku alebo je na dotyk horúci?'},
+ hot_env:{q:.05,t:'Pobyt v horúčave / námaha v teple',obs:1,ico:'☀️',ask:'Bol v horúčave, na slnku alebo pri veľkej námahe v teple?'},
+ cold_env:{q:.04,t:'Pobyt v chlade / vo vode',obs:1,ico:'❄️',ask:'Bol dlhšie v chlade alebo vo vode a je na dotyk studený?'},
+ diabetic:{q:.1,t:'Diabetik',obs:1,ico:'💉',ask:'Je diabetik? (inzulín, tabletky na cukor, glukomer, senzor na ruke)'},
+ ingestion:{q:.05,t:'Možné požitie liekov/chemikálie/drog',obs:1,ico:'🧪',ask:'Mohol požiť lieky, chemikáliu, huby, rastlinu alebo drogy? (obaly, fľaše, prášky okolo)'},
+ alcohol:{q:.08,t:'Zápach alkoholu',obs:1,ico:'🍺',ask:'Cítiť z neho alkohol?'},
+ head_injury:{q:.1,t:'Pád / úder do hlavy',obs:1,ico:'🤕',ask:'Spadol alebo sa udrel do hlavy?'},
+ anticoag:{q:.1,t:'Lieky na riedenie krvi',obs:1,ico:'💊',ask:'Berie lieky na riedenie krvi? (napr. Warfarin, Xarelto, Eliquis, Pradaxa)',req:A=>A.head_injury===true||A.fainted===true||A.age==='senior'},
+ fainted:{q:.1,t:'Krátko odpadol a rýchlo sa prebral',obs:1,ico:'🫠',ask:'Odpadol len na chvíľu (do minúty) a rýchlo sa prebral?'},
+ faint_trigger:{q:.4,t:'Spúšťač odpadnutia (státie, teplo, bolesť, strach, vstávanie)',obs:1,ico:'🧍',ask:'Predchádzalo tomu dlhé státie, teplo, bolesť, strach alebo rýchle vstanie?',req:A=>A.fainted===true,prio:.2},
+ palpitations:{q:.08,t:'Búšenie / nepravidelný tep',obs:0,ico:'💓',ask:'Cíti búšenie srdca, nepravidelný alebo veľmi rýchly tep?'},
+ anxiety:{q:.1,t:'Strach, rýchle dýchanie, tŕpnutie',obs:1,ico:'😰',ask:'Je vystrašený, dýcha rýchlo, tŕpnu mu prsty alebo okolo úst?'},
+ low_drink:{q:.12,t:'Málo pije / suchý jazyk / málo močí',obs:1,ico:'🥤',ask:'Málo pil posledné dni, má suchý jazyk alebo málo močí?'},
+ urinary:{q:.06,t:'Pálenie pri močení / zapáchajúci moč',obs:0,ico:'🚽',ask:'Páli ho pri močení alebo mu zapácha moč?'},
+ cough:{q:.12,t:'Kašeľ / hlien',obs:1,ico:'😷',ask:'Kašle alebo má hlien?'},
+ drowsy:{q:.1,t:'Spavý, ťažko sa udrží hore',obs:1,ico:'😴',ask:'Je ospalý, ťažko sa udrží hore?'},
+ sugar_better:{q:.5,t:'Po cukre sa zlepšil',obs:1,ico:'🍬',ask:'Prešlo 10–15 minút od podania cukru. Zlepšil sa?',req:A=>A.glu==='low',prio:2}
+},
+
+/* ---------- VIACHODNOTOVÉ ÚDAJE ---------- */
+VARS: {
+ age:{t:'Vek',ico:'🎂',ask:'Koľko má približne rokov?',obs:1,
+  vals:[['child','Dieťa (do 12 r.)'],['young','12 – 40 r.'],['mid','40 – 65 r.'],['senior','Nad 65 r.']],base:[.1,.3,.3,.3]},
+ glu:{t:'Glykémia',ico:'🩸',ask:'Ak máš glukomer, zmeraj cukor. Aká je hodnota?',obs:1,
+  req:A=>A.diabetic===true||A.confusion===true||A.seizure===true||A.drowsy===true||(A.sweat===true&&A.diabetic!==false),prio:.6,
+  vals:[['low','Pod 4 mmol/l (nízky)'],['norm','4 – 15 mmol/l'],['high','Nad 15 mmol/l (vysoký)']],base:[.1,.8,.1],skip:'Nemám ako zmerať'}
+},
+
+/* ---------- HLAVNÉ PRÍZNAKY (úvodná obrazovka) ---------- */
+MAIN: ['seizure','confusion','chest_pain','dyspnea','fainted','head_injury','vomiting','fever','drowsy','swelling_face','palpitations','ingestion'],
+
+/* ---------- STAVY ---------- */
+COND: [
+ {id:'ami',name:'Srdcový infarkt (akútny koronárny syndróm)',prior:.07,urg:'red',
+  ev:{chest_pain:.85,chest_radiates:.5,chest_pleuritic:.1,chest_burning_food:.15,exertion:.45,sweat:.5,dyspnea:.45,vomiting:.25,palpitations:.2,anxiety:.25,fainted:.1,confusion:.1,seizure:.02,fever:.05,diabetic:.22,cough:.08,wheeze:.05,swelling_face:.02,allergen:.03,head_injury:.03,ingestion:.02,hot_env:.03,cold_env:.02,low_drink:.08},
+  vars:{age:[.001,.07,.4,.53]},
+  aid:['Volaj 155.','Posaď ho do polosedu, uvoľni tesný odev, nenechaj ho chodiť.','Aspirín len na pokyn operátora.','Ak prestane dýchať → resuscitácia.']},
+ {id:'stroke',name:'Cievna mozgová príhoda (porážka)',prior:.06,urg:'red',
+  ev:{face_droop:.6,arm_weak:.65,speech:.6,confusion:.5,confusion_sudden:.92,headache_sudden:.15,vomiting:.2,drowsy:.3,seizure:.06,chest_pain:.05,sweat:.08,fever:.05,dyspnea:.05,palpitations:.12,fainted:.05,ingestion:.02,alcohol:.05,low_drink:.1},
+  vars:{age:[.005,.05,.3,.645]},
+  aid:['Volaj 155 hneď – čas je kľúčový.','Zapamätaj si, kedy bol naposledy v poriadku.','Nedávaj jesť, piť ani lieky.','Ak zvracia alebo je ospalý → poloha na boku.']},
+ {id:'epi',name:'Epileptický záchvat',prior:.035,
+  urg:A=>(A.epilepsy_known===true&&A.seizure_recovered===true&&A.seizure_long===false)?'orange':'red',
+  ev:{seizure:.97,epilepsy_known:.6,seizure_recovered:.75,seizure_long:.15,tongue_bite:.45,confusion:.65,confusion_sudden:.7,drowsy:.55,fever:.06,face_droop:.05,arm_weak:.08,speech:.3,chest_pain:.02,dyspnea:.05,head_injury:.12,fainted:.1,ingestion:.03,alcohol:.08},
+  vars:{age:[.12,.43,.3,.15]},
+  aid:['Počas kŕčov: chráň hlavu, odstráň tvrdé predmety, nič mu nedávaj do úst, nedrž ho.','Sleduj čas – nad 5 minút volaj 155.','Po kŕčoch ho ulož na bok a sleduj dýchanie.','Pri prvom záchvate, zranení alebo ak sa nepreberá → 155.']},
+ {id:'febr',name:'Horúčkové kŕče (dieťa s horúčkou)',prior:.012,urg:'red',
+  ev:{seizure:.97,fever:.97,seizure_recovered:.8,seizure_long:.1,epilepsy_known:.05,drowsy:.5,confusion:.3,vomiting:.2,tongue_bite:.1},
+  vars:{age:[.97,.02,.005,.005]},
+  aid:['Chráň ho pred úrazom, nič mu nedávaj do úst.','Po kŕčoch ulož na bok, uvoľni oblečenie, neprehrievaj.','Volaj 155 – najmä pri prvých kŕčoch alebo ak trvajú nad 5 minút.']},
+ {id:'hypo',name:'Nízky cukor v krvi (hypoglykémia)',prior:.04,urg:A=>A.sugar_better===true?'orange':'red',
+  ev:{diabetic:.9,sweat:.7,confusion:.7,confusion_sudden:.8,drowsy:.45,seizure:.12,anxiety:.3,palpitations:.35,speech:.35,face_droop:.03,arm_weak:.06,chest_pain:.03,alcohol:.15,vomiting:.1,fever:.05,sugar_better:.85,dyspnea:.05},
+  vars:{glu:[.95,.04,.01],age:[.05,.35,.3,.3]},
+  aid:['Ak je pri vedomí a bezpečne prehĺta: 15–20 g cukru (sladký nápoj, 3–4 kocky cukru, glukózové tablety).','Po 15 minútach skontroluj; ak sa nezlepší, opakuj a volaj 155.','Keď sa zlepší, nech zje niečo s pečivom.','Ak je ospalý alebo sa dusí, nič do úst – 155.']},
+ {id:'hyper',name:'Vysoký cukor / diabetická ketoacidóza',prior:.02,urg:A=>(A.drowsy||A.confusion||A.dyspnea)?'red':'orange',
+  ev:{diabetic:.9,low_drink:.8,vomiting:.5,drowsy:.45,confusion:.4,dyspnea:.3,fever:.15,sweat:.1,anxiety:.1},
+  vars:{glu:[.01,.09,.9]},
+  aid:['Ešte dnes kontaktuj lekára; pri spavosti, zmätenosti alebo zvracaní volaj 155.','Ak je pri vedomí, nech pije vodu po dúškoch.']},
+ {id:'poison',name:'Otrava alebo predávkovanie (lieky, chemikálie, drogy)',prior:.04,urg:'red',
+  ev:{ingestion:.85,vomiting:.5,confusion:.6,drowsy:.6,seizure:.15,alcohol:.3,sweat:.3,dyspnea:.2,palpitations:.25,chest_pain:.05,fever:.08,confusion_sudden:.7,speech:.4,anxiety:.2},
+  vars:{age:[.2,.5,.2,.1]},
+  aid:['Volaj 155 alebo toxikologické centrum NTIC: 02/5477 4166 (nonstop).','Nevyvolávaj zvracanie, pokiaľ ti to výslovne neodporučia.','Odlož obal, zvyšky lieku, rastliny alebo húb – vezmi ich so sebou.','Ak je ospalý → poloha na boku, sleduj dýchanie.']},
+ {id:'alcohol',name:'Opitosť / otrava alkoholom',prior:.05,urg:A=>(A.drowsy||A.vomiting&&A.confusion)?'red':'orange',
+  ev:{alcohol:.97,confusion:.6,vomiting:.4,drowsy:.45,head_injury:.2,ingestion:.3,speech:.6,face_droop:.03,arm_weak:.05,fever:.03,sweat:.1,confusion_sudden:.3},
+  vars:{age:[.01,.5,.35,.14]},
+  aid:['Nenechávaj ho samého, ulož na bok (riziko vdýchnutia zvratkov).','Chráň pred chladom.','Pozor: alkohol môže zakrývať nízky cukor, úraz hlavy alebo mozgovú príhodu.']},
+ {id:'head',name:'Úraz hlavy (otras alebo krvácanie do mozgu)',prior:.05,
+  urg:A=>(A.confusion||A.vomiting||A.drowsy||A.anticoag||A.seizure)?'red':'orange',
+  ev:{head_injury:.97,confusion:.45,vomiting:.35,drowsy:.35,anticoag:.3,headache_sudden:.15,seizure:.06,speech:.2,face_droop:.08,arm_weak:.1,alcohol:.2,confusion_sudden:.8,fainted:.2},
+  vars:{age:[.15,.3,.2,.35]},
+  aid:['Nech zostane v pokoji, nehýb s ním, ak sa sťažuje na krk.','Pri zmätenosti, zvracaní, ospalosti alebo liekoch na riedenie krvi volaj 155.','Najbližších 24 hodín ho nenechávaj samého.']},
+ {id:'sepsis',name:'Infekcia (močová, zápal pľúc…) – môže byť vážna',prior:.06,
+  urg:A=>((A.confusion||A.drowsy)&&A.fever)||A.dyspnea||A.drowsy?'red':'orange',
+  ev:{fever:.8,confusion:.5,confusion_sudden:.45,low_drink:.5,urinary:.3,cough:.4,dyspnea:.35,sweat:.3,drowsy:.3,palpitations:.25,vomiting:.25,seizure:.03,chest_pain:.1,chest_pleuritic:.4},
+  vars:{age:[.15,.2,.2,.45]},
+  aid:['Pri zmätenosti, spavosti alebo ťažkom dýchaní s horúčkou volaj 155.','Inak kontaktuj ešte dnes lekára.','Podávaj tekutiny po dúškoch.']},
+ {id:'dehydr',name:'Dehydratácia (nedostatok tekutín)',prior:.05,urg:A=>(A.confusion||A.drowsy)?'orange':'yellow',
+  ev:{low_drink:.95,confusion:.35,vomiting:.35,fever:.25,drowsy:.2,fainted:.2,palpitations:.2,hot_env:.2,sweat:.1},
+  vars:{age:[.2,.1,.15,.55]},
+  aid:['Podávaj tekutiny po malých dúškoch (voda, rehydratačný roztok).','Ak nevie piť, zvracia alebo je zmätený → lekár ešte dnes.']},
+ {id:'syncope',name:'Krátke odpadnutie z obehových príčin (synkopa)',prior:.07,
+  urg:A=>(A.chest_pain||A.palpitations||A.exertion||A.dyspnea)?'red':(A.age==='senior'||A.head_injury?'orange':'yellow'),
+  ev:{fainted:.95,faint_trigger:.8,sweat:.45,confusion:.05,seizure:.08,tongue_bite:.03,palpitations:.15,chest_pain:.03,exertion:.05,vomiting:.15,drowsy:.03,head_injury:.2,low_drink:.2},
+  vars:{age:[.1,.45,.25,.2]},
+  aid:['Polož ho na chrbát a zdvihni mu nohy.','Pomaly ho posaď až keď sa cíti dobre.','Ak odpadol pri námahe, mal bolesť na hrudi alebo búšenie srdca → 155.']},
+ {id:'arrhythmia',name:'Porucha srdcového rytmu',prior:.03,urg:A=>(A.fainted||A.chest_pain||A.dyspnea)?'red':'orange',
+  ev:{palpitations:.8,fainted:.35,faint_trigger:.15,dyspnea:.35,chest_pain:.25,sweat:.3,anxiety:.3,confusion:.1,exertion:.3},
+  vars:{age:[.02,.15,.33,.5]},
+  aid:['Nech sedí v pokoji.','Pri odpadnutí, bolesti na hrudi alebo dýchavici volaj 155, inak lekár ešte dnes.']},
+ {id:'pe',name:'Krvná zrazenina v pľúcach (pľúcna embólia)',prior:.02,urg:'red',
+  ev:{dyspnea:.9,chest_pain:.55,chest_pleuritic:.6,leg_swelling:.45,palpitations:.45,fainted:.12,cough:.2,sweat:.3,anxiety:.3,wheeze:.05,fever:.1},
+  vars:{age:[.01,.25,.37,.37]},
+  aid:['Volaj 155.','Nech sedí v polosede a nenamáha sa.']},
+ {id:'asthma',name:'Astmatický záchvat / zhoršenie CHOCHP',prior:.05,urg:A=>A.dyspnea?'red':'orange',
+  ev:{dyspnea:.97,wheeze:.8,asthma_known:.85,cough:.55,chest_pain:.15,anxiety:.3,swelling_face:.03,allergen:.15,sweat:.2,fever:.15},
+  vars:{age:[.2,.3,.25,.25]},
+  aid:['Posaď ho vzpriamene, nech sa opiera rukami o kolená alebo stôl.','Pomôž mu použiť jeho inhalátor.','Ak sa do pár minút nezlepší alebo nevie hovoriť → 155.']},
+ {id:'anaph',name:'Ťažká alergická reakcia (anafylaxia)',prior:.02,urg:'red',
+  ev:{allergen:.85,swelling_face:.75,dyspnea:.6,wheeze:.45,vomiting:.3,fainted:.25,sweat:.3,anxiety:.3,chest_pain:.1,palpitations:.3},
+  vars:{age:[.2,.4,.25,.15]},
+  aid:['Volaj 155.','Ak má adrenalínové pero (EpiPen), pomôž mu ho použiť do vonkajšej strany stehna.','Pri ťažkom dýchaní nech sedí; ak je slabý alebo omdlieva, polož ho a zdvihni nohy.','Ak sa do 5 minút nezlepší a má druhé pero, použi ho.']},
+ {id:'panic',name:'Panický záchvat / hyperventilácia',prior:.05,urg:'yellow',
+  ev:{anxiety:.92,dyspnea:.6,palpitations:.6,chest_pain:.4,chest_pleuritic:.2,chest_radiates:.15,sweat:.3,exertion:.05,confusion:.03,wheeze:.03,fever:.02,fainted:.1,diabetic:.07},
+  vars:{age:[.05,.65,.25,.05]},
+  aid:['Hovor pokojne, odveď ho na tiché miesto.','Nech dýcha pomaly – nádych na 4, výdych na 6.','Pozor: rovnaké príznaky môže mať infarkt alebo embólia – pri pochybnosti 155.']},
+ {id:'heat',name:'Prehriatie / úpal',prior:.02,urg:A=>(A.confusion||A.drowsy||A.seizure)?'red':'orange',
+  ev:{hot_env:.97,confusion:.45,fever:.75,vomiting:.35,drowsy:.3,sweat:.35,low_drink:.6,seizure:.05,fainted:.3},
+  aid:['Okamžite ho presuň do chladu a chlaď: studená voda na celé telo, mokré uteráky, ovievanie.','Pri zmätenosti alebo ospalosti volaj 155 a chlaď ďalej.','Ak je pri vedomí, nech pije chladnú vodu.']},
+ {id:'cold',name:'Podchladenie',prior:.015,urg:A=>(A.confusion||A.drowsy)?'red':'orange',
+  ev:{cold_env:.97,confusion:.5,drowsy:.5,alcohol:.3,speech:.4},
+  aid:['Presuň ho do tepla, vyzleč mokré oblečenie, zabaľ do deky (aj hlavu).','Manipuluj s ním šetrne.','Ak je pri vedomí, daj teplý sladký nápoj.','Pri zmätenosti alebo ospalosti volaj 155.']},
+ {id:'reflux',name:'Pálenie záhy / tráviace ťažkosti',prior:.05,urg:'yellow',
+  ev:{chest_pain:.9,chest_burning_food:.85,chest_radiates:.08,chest_pleuritic:.1,exertion:.05,sweat:.05,dyspnea:.05,vomiting:.15},
+  vars:{age:[.03,.4,.35,.22]},
+  aid:['Pri bolesti na hrudi sa infarkt laicky vylúčiť nedá – pri pochybnosti volaj 155.']},
+ {id:'other',name:'Iná alebo nejasná príčina',prior:.1,urg:'green',ev:{},aid:[]}
+],
+
+/* ---------- BEZPEČNOSTNÉ PRAVIDLÁ ---------- */
+/* when(A,S) → true spustí pravidlo. urg = minimálna naliehavosť. alert = okamžitý pokyn. */
+SAFETY: [
+ {id:'unresp',when:(A,S)=>S.f.unresp,urg:'red',why:'Nereagoval na oslovenie ani dotyk'},
+ {id:'cardiac',when:(A,S)=>S.f.cardiac,urg:'red',why:'Nedýchal normálne – resuscitácia'},
+ {id:'drowsy',when:A=>A.drowsy===true,urg:'red',alert:'drowsy',why:'Porucha vedomia (spavý, ťažko prebuditeľný)'},
+ {id:'seizure',when:A=>A.seizure===true,alert:'seizure',
+  urg:A=>(A.epilepsy_known===true&&A.seizure_recovered===true&&A.seizure_long===false)?'orange':'red',
+  why:'Kŕče (pri prvom záchvate, trvaní nad 5 min alebo ak sa nepreberá → 155)'},
+ {id:'fast',when:A=>A.face_droop===true||A.arm_weak===true||A.speech===true,urg:'red',alert:'stroke',why:'Pozitívny test mozgovej príhody (tvár / ruka / reč)'},
+ {id:'thunder',when:A=>A.headache_sudden===true,urg:'red',alert:'headache',why:'Náhla prudká bolesť hlavy'},
+ {id:'chest',when:A=>A.chest_pain===true,urg:'red',alert:'mi',why:'Bolesť na hrudi – laicky sa infarkt vylúčiť nedá'},
+ {id:'dysp',when:A=>A.dyspnea===true,urg:'red',alert:'dysp',why:'Ťažké dýchanie v pokoji'},
+ {id:'anaph',when:A=>A.swelling_face===true&&(A.dyspnea===true||A.wheeze===true||A.fainted===true||A.vomiting===true),urg:'red',alert:'anaph',why:'Opuch + dýchacie / obehové ťažkosti (možná anafylaxia)'},
+ {id:'swell',when:A=>A.swelling_face===true,urg:'orange',why:'Opuch tváre / žihľavka'},
+ {id:'poison',when:A=>A.ingestion===true,urg:'orange',alert:'poison',why:'Možné požitie lieku / jedu'},
+ {id:'lowglu',when:A=>A.glu==='low',urg:'orange',alert:'sugar',why:'Nízky cukor'},
+ {id:'lowglu_bad',when:A=>A.sugar_better===false,urg:'red',why:'Nízky cukor bez zlepšenia po cukre'},
+ {id:'headinj',when:A=>A.head_injury===true&&(A.anticoag===true||A.confusion===true||A.vomiting===true||A.drowsy===true||A.seizure===true),urg:'red',alert:'headinj',why:'Úraz hlavy s varovným príznakom'},
+ {id:'headinj0',when:A=>A.head_injury===true,urg:'orange',why:'Úraz hlavy'},
+ {id:'heat',when:A=>A.hot_env===true&&(A.confusion===true||A.drowsy===true||A.seizure===true),urg:'red',alert:'heat',why:'Prehriatie so zmätenosťou'},
+ {id:'cold',when:A=>A.cold_env===true&&(A.confusion===true||A.drowsy===true),urg:'red',alert:'cold',why:'Podchladenie so zmätenosťou'},
+ {id:'cold0',when:A=>A.cold_env===true,urg:'orange',why:'Podchladenie'},
+ {id:'conf_sudden',when:A=>A.confusion===true&&A.confusion_sudden===true,urg:A=>(A.glu==='low'&&A.sugar_better===true)?'orange':'red',alert:'conf',why:'Náhla zmätenosť'},
+ {id:'conf_fever',when:A=>A.confusion===true&&A.fever===true,urg:'red',why:'Zmätenosť s horúčkou (riziko vážnej infekcie)'},
+ {id:'conf',when:A=>A.confusion===true,urg:'orange',why:'Zmätenosť'},
+ {id:'faint_red',when:A=>A.fainted===true&&(A.chest_pain===true||A.palpitations===true||A.exertion===true||A.dyspnea===true),urg:'red',why:'Odpadnutie s bolesťou na hrudi / búšením / pri námahe'},
+ {id:'faint_old',when:A=>A.fainted===true&&A.age==='senior',urg:'orange',why:'Odpadnutie u staršieho človeka'},
+ {id:'faint',when:A=>A.fainted===true,urg:'yellow',why:'Odpadnutie'},
+ {id:'palp',when:A=>A.palpitations===true,urg:'orange',why:'Búšenie / nepravidelný tep'},
+ {id:'hyperglu',when:A=>A.glu==='high'&&(A.vomiting===true||A.low_drink===true),urg:'orange',why:'Vysoký cukor so zvracaním / smädom'},
+ {id:'fever',when:A=>A.fever===true,urg:'yellow',why:'Horúčka'},
+ {id:'uti',when:A=>A.urinary===true,urg:'yellow',why:'Ťažkosti s močením'},
+ {id:'drink',when:A=>A.low_drink===true,urg:'yellow',why:'Málo pije'}
+],
+
+/* ---------- OKAMŽITÉ POKYNY ---------- */
+ALERTS: {
+ danger:{t:'Nebezpečné miesto',ico:'⛔',call:'112',cont:'Miesto je už bezpečné – pokračovať',
+  q:'Nevstupuj do nebezpečia – zranený záchranca nepomôže nikomu. Volaj 112 a popíš miesto. Ak sa dá bezpečne: vypni prúd, zabezpeč miesto (trojuholník, výstražné svetlá).'},
+ unc:{t:'V bezvedomí, ale dýcha',ico:'🛌',cont:'Je na boku, volal som 155 – ďalej',
+  q:'Volaj 155 na hlasitý odposluch. Ulož ho do stabilizovanej polohy na bok (hlava zaklonená, ústa smerom nadol) a prikry ho. Každú minútu skontroluj, či dýcha. Kým čakáš, odpovedz na pár otázok – pomôžu záchranárom.'},
+ stroke:{t:'Možná mozgová príhoda',ico:'🧠',q:'Volaj 155 hneď – každá minúta rozhoduje. Zapamätaj si, kedy bol naposledy v poriadku. Nedávaj mu jesť, piť ani lieky. Ak zvracia alebo je ospalý, ulož ho na bok.'},
+ mi:{t:'Bolesť na hrudi',ico:'💔',q:'Volaj 155. Posaď ho do polosedu (opretý o stenu alebo kreslo), uvoľni tesný odev, nenechaj ho chodiť ani sa namáhať. Aspirín podaj len na pokyn operátora.'},
+ dysp:{t:'Ťažké dýchanie',ico:'🫁',q:'Volaj 155. Posaď ho vzpriamene, nech sa opiera rukami o kolená alebo stôl. Uvoľni odev, pusti čerstvý vzduch. Ak má vlastný inhalátor, pomôž mu ho použiť.'},
+ bleed:{t:'Silné krvácanie',ico:'🩸',q:'Tlač silno priamo na ranu (obväz, uterák, oblečenie) a nepovoľuj. Volaj 155. Ak krv presakuje, pridaj ďalšiu vrstvu – pôvodnú nedvíhaj.'},
+ seizure:{t:'Kŕče',ico:'⚡',q:'Počas kŕčov: chráň mu hlavu, odstráň tvrdé predmety, nič mu nedávaj do úst a nedrž ho násilím. Sleduj čas. Po skončení ho ulož na bok. Volaj 155 – najmä ak je to prvý záchvat, trvá nad 5 minút, opakuje sa, zranil sa alebo sa nepreberá.'},
+ drowsy:{t:'Porucha vedomia',ico:'😴',q:'Ťažko prebuditeľný človek potrebuje záchranku. Volaj 155. Ak zaspáva, ulož ho na bok a sleduj dýchanie.'},
+ headache:{t:'Náhla prudká bolesť hlavy',ico:'🤯',q:'Môže ísť o krvácanie do mozgu. Volaj 155. Nech leží s mierne zdvihnutou hlavou, nedávaj mu lieky.'},
+ anaph:{t:'Možná ťažká alergická reakcia',ico:'🐝',q:'Volaj 155. Ak má adrenalínové pero (EpiPen), pomôž mu ho použiť do vonkajšej strany stehna. Pri ťažkom dýchaní nech sedí; ak je slabý alebo omdlieva, polož ho a zdvihni mu nohy.'},
+ poison:{t:'Možná otrava',ico:'🧪',call:'0254774166',callLabel:'NTIC 02/5477 4166',
+  q:'Volaj toxikologické centrum NTIC (nonstop) 02/5477 4166 alebo 155 – pri ospalosti, kŕčoch alebo ťažkom dýchaní vždy 155. Nevyvolávaj zvracanie, pokiaľ ti to výslovne neodporučia. Odlož obal, zvyšky lieku, rastliny alebo húb.'},
+ sugar:{t:'Nízky cukor – podaj cukor',ico:'🍬',call:'none',cont:'Cukor podaný / nedá sa – pokračovať',
+  q:'Ak je pri vedomí a bezpečne prehĺta: daj 15–20 g cukru – sladký nápoj (džús, sladená limonáda), 3–4 kocky cukru alebo glukózové tablety. Ak je ospalý alebo sa dusí, nič mu nedávaj do úst a volaj 155. O 10–15 minút sa ťa opýtam, či sa zlepšil.'},
+ headinj:{t:'Úraz hlavy s varovným príznakom',ico:'🤕',q:'Volaj 155. Nech zostane v pokoji v ľahu; ak zvracia alebo je ospalý, ulož ho na bok. Ak sa sťažuje na krk, nehýb s ním.'},
+ heat:{t:'Možný úpal',ico:'☀️',q:'Volaj 155 a okamžite chlaď: presuň do chladu, studená voda na celé telo (sprcha, mokré uteráky), ovievaj. Nepodávaj lieky na horúčku.'},
+ cold:{t:'Podchladenie',ico:'❄️',q:'Volaj 155. Presuň ho do tepla, šetrne vyzleč mokré oblečenie, zabaľ do deky aj s hlavou. Nemasíruj ho a nedávaj alkohol.'},
+ conf:{t:'Náhla zmätenosť',ico:'😵‍💫',q:'Náhla zmena správania alebo zmätenosť môže znamenať mozgovú príhodu, nízky cukor, otravu alebo vážnu infekciu. Volaj 155. Pokračuj v otázkach – pomôžu záchranárom.'},
+ generic:{t:'Volaj 155',ico:'🚑',q:'Tento stav vyžaduje záchranku. Volaj 155 a riaď sa pokynmi operátora.'}
+},
+
+LEVEL: {
+ red:{label:'VOLAJ 155 HNEĎ',ico:'🚑',advice:['Volaj 155 (ak si ešte nevolal) na hlasitý odposluch – operátor ťa povedie.','Zostaň pri ňom a sleduj dýchanie. Ak prestane normálne dýchať → resuscitácia.','Nedávaj mu jesť, piť ani lieky, pokiaľ to nepovie operátor.','Priprav jeho lieky a doklady, odomkni dvere, rozsvieť.','Keď príde záchranka, ukáž im súhrn.']},
+ orange:{label:'LEKÁR EŠTE DNES',ico:'🩺',advice:['Ešte dnes zavolaj jeho všeobecnému lekárovi; mimo ordinačných hodín choď na pohotovosť (LSPP).','Ak si nie si istý, zavolaj 155 – operátor posúdi, či treba záchranku.','Nenechávaj ho samého, kontrolu zopakuj o 15–30 minút.','Ak sa objaví bolesť na hrudi, ochrnutie, porucha reči, ťažké dýchanie alebo spavosť → volaj 155.']},
+ yellow:{label:'VŠEOBECNÝ LEKÁR V NAJBLIŽŠÍCH DŇOCH',ico:'📅',advice:['Stav teraz nevyzerá urgentne – môže to počkať.','Objednaj ho k všeobecnému lekárovi v najbližších dňoch a ukáž mu súhrn.','Dovtedy ho sleduj (pitie, teplota, tlak). Pri zhoršení spusti kontrolu znova.','Ak sa objaví bolesť na hrudi, ochrnutie, porucha reči, ťažké dýchanie alebo spavosť → volaj 155.']},
+ green:{label:'VYZERÁ TO DOBRE',ico:'✅',advice:['Neboli zistené žiadne varovné ani podozrivé príznaky.','Netreba volať záchranku ani ísť k lekárovi kvôli tomuto stavu.','Ak sa niečo zmení alebo sa ti stále nezdá, spusti kontrolu znova – tvoj dojem je dôležitý.']}
+}
+};
