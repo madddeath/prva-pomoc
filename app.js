@@ -9,6 +9,16 @@ const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').repl
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const tm=()=>new Date().toLocaleTimeString('sk-SK',{hour:'2-digit',minute:'2-digit'});
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;return e}
+/* ---------- texty podľa pohlavia (pri žene) ---------- */
+const GPH=[['bledý, studený a spotený','bledá, studená a spotená'],['na dotyk studený','na dotyk studená'],['na dotyk horúci','na dotyk horúca'],['za neho','za ňu'],['sa ho opýtaj','sa jej opýtaj'],['sa ho opýtať','sa jej opýtať'],['Je diabetik?','Je diabetička?'],['Diabetik','Diabetička']];
+const GW={bol:'bola',mal:'mala',mohol:'mohla',mával:'mávala',odpadol:'odpadla',spadol:'spadla',udrel:'udrela',zlepšil:'zlepšila',bledý:'bledá',bodnutý:'bodnutá',nehybný:'nehybná',
+ ospalý:'ospalá',opretý:'opretá',pil:'pila',pokúsil:'pokúsila',pomočil:'pomočila',prebral:'prebrala',rozrušený:'rozrušená',samého:'samú',slabý:'slabá',spotený:'spotená',
+ unavený:'unavená',užil:'užila',vystrašený:'vystrašená',zjedol:'zjedla',zmätený:'zmätená',zranil:'zranila',zvracal:'zvracala',topil:'topila',spavý:'spavá',horúci:'horúca',
+ ho:'ju',jeho:'jej',mu:'jej',neho:'nej',ním:'ňou',ňom:'nej',prebudil:'prebudila',vymočil:'vymočila'};
+const GRX=new RegExp('(^|[^\\p{L}])('+Object.keys(GW).map(w=>w+'|'+w[0].toUpperCase()+w.slice(1)).join('|')+')(?![\\p{L}])','gu');
+function gx(s){if(!s||typeof S==='undefined'||!S.dx||S.dx.A.sex!=='f')return s;let t=String(s);
+ GPH.forEach(([m,f])=>{t=t.split(m).join(f)});
+ return t.replace(GRX,(all,pre,w)=>{const low=w.toLowerCase();let r=GW[low];if(w[0]!==low[0])r=r[0].toUpperCase()+r.slice(1);return pre+r})}
 let toastT;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('show'),3200)}
 
 /* ---------- state ---------- */
@@ -65,7 +75,7 @@ CH2:{step:'Dusenie',ico:'🗣️',t:'Povzbudzuj ho, nech kašle',q:'Nič nerob, 
  opts:[{l:'Vykašľal to, dýcha normálne',ico:'✅',a:'Cudzie teleso vykašľané',go:'CH4',kw:['vykaslal','dycha']},
   {l:'Kašeľ slabne, nevie dýchať',ico:'🚫',f:'Kašeľ zoslabol',go:'CH3',kw:['slabne','nevie']}]},
 CH3:{type:'alert',step:'Dusenie',ico:'✋',t:'5 úderov do chrbta, potom 5 stlačení brucha',call:'155',
- q:'Volaj 155 (hlasitý odposluch). Predkloň ho a daj 5 silných úderov dlaňou medzi lopatky. Ak to nepomôže, postav sa za neho, päsť nad pupok, druhou rukou ju chyť a 5× prudko zatlač dovnútra a hore. Striedaj 5 úderov a 5 stlačení. Ak stratí vedomie → resuscitácia.',
+ q:'Volaj 155 (hlasitý odposluch). Predkloň ho a daj 5 silných úderov dlaňou medzi lopatky. Ak to nepomôže, postav sa za neho, päsť nad pupok, druhou rukou ju chyť a 5× prudko zatlač dovnútra a hore. Striedaj 5 úderov a 5 stlačení. DOJČA do 1 roka: polož ho bruškom na predlaktie hlavou nižšie, 5 úderov medzi lopatky, potom ho otoč na chrbát a 5× stlač stred hrudníka dvoma prstami (brucho dojčaťu nestláčaj). Ak stratí vedomie → resuscitácia.',
  opts:[{l:'Uvoľnilo sa, dýcha',ico:'✅',a:'Údery do chrbta / stlačenia brucha – uvoľnené',go:'CH4',kw:['uvolnilo','dycha']},
   {l:'Stratil vedomie',ico:'😶',a:'Strata vedomia pri dusení',flag:'unresp cardiac',go:'CPR',kw:['stratil','vedomie']}]},
 CH4:{type:'alert',step:'Po dusení',ico:'🩺',t:'Nechaj ho skontrolovať lekárom',call:'none',
@@ -117,7 +127,7 @@ function summaryText(){
  const why=sf.filter(r=>r.u!=='green').map(r=>r.why);if(why.length)s+='\n'+why.map(x=>'! '+x).join('\n');
  if(S.dx.mainDone){s+='\n\nMOŽNÉ PRÍČINY (laický odhad, nie diagnóza):\n'+R.slice(0,3).map(({c,p})=>`• ${c.name} – ${Math.round(p*100)} %`).join('\n')}
  s+='\n\n(Laické posúdenie, nie diagnóza.)';
- return s;
+ return gx(s);
 }
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast('Skopírované')}
  catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();
@@ -130,7 +140,7 @@ let ttsOn=true,voice=null,speaking=false,voiceWarned=false;
 function pickVoice(){if(!('speechSynthesis' in window))return;const vs=speechSynthesis.getVoices();voice=vs.find(v=>/^sk/i.test(v.lang))||vs.find(v=>/^cs/i.test(v.lang))||null}
 if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
 const clean=t=>(t||'').replace(/\p{Extended_Pictographic}|️|‍/gu,'').replace(/[„"“]/g,'').replace(/–/g,',');
-function speak(t){
+function speak(t){t=gx(t);
  if(!ttsOn||!('speechSynthesis' in window)){if(listening)startRec();return}
  speechSynthesis.cancel();
  if(!voice){pickVoice();if(!voice&&!voiceWarned){voiceWarned=true;toast('V zariadení chýba slovenský hlas – doinštaluj ho v nastaveniach (Prevod textu na reč)')}}
@@ -197,7 +207,7 @@ function show(id){
  if(S.node!==id)return; // počas renderu sa presmerovalo (napr. na upozornenie)
  if(n.type!=='start')speakNode();else if(listening)startRec();
 }
-function optBtn(o,i,onClick){const b=el('button','opt '+(o.cls||''),`<span class="ico">${o.ico||''}</span><span>${esc(o.l)}</span>${i>=0?`<span class="num">${i+1}</span>`:''}`);b.onclick=onClick;return b}
+function optBtn(o,i,onClick){const b=el('button','opt '+(o.cls||''),`<span class="ico">${o.ico||''}</span><span>${esc(gx(o.l))}</span>${i>=0?`<span class="num">${i+1}</span>`:''}`);b.onclick=onClick;return b}
 function callBtn(num,label){
  const a=el('a','opt danger',`<span class="ico">📞</span><span>Volať ${esc(label||num)}</span>`);
  a.href='tel:'+num;a.target='_top';
@@ -207,9 +217,9 @@ function callBtn(num,label){
 }
 function head(n,w){
  w.append(el('div','step',`<span class="big">${n.ico||''}</span><span>${esc(n.step||'')}</span>`));
- w.append(el('h1','',esc(n.t)));
- if(n.q)w.append(el('p','q',esc(n.q)));
- if(n.hint)w.append(el('div','hint','💡 '+esc(n.hint)));
+ w.append(el('h1','',esc(gx(n.t))));
+ if(n.q)w.append(el('p','q',esc(gx(n.q))));
+ if(n.hint)w.append(el('div','hint','💡 '+esc(gx(n.hint))));
 }
 function renderQ(n){
  const w=el('div',n.type==='alert'?'alert':'');head(n,w);const box=el('div','opts');
@@ -241,7 +251,7 @@ function renderDX(){
 }
 function qWrap(ico,step,title,hint){
  const w=el('div');w.append(el('div','step',`<span class="big">${ico}</span><span>${esc(step)}</span>`));
- w.append(el('h1','',esc(title)));if(hint)w.append(el('div','hint','💡 '+esc(hint)));
+ w.append(el('h1','',esc(gx(title))));if(hint)w.append(el('div','hint','💡 '+esc(gx(hint))));
  const hl=hypLine();if(hl)w.append(hl);return w;
 }
 function finishBtn(box){
@@ -250,7 +260,7 @@ function finishBtn(box){
  box.append(optBtn(o,-1,act));CUR.push({kw:['vyhodnotit','vyhodnot','koniec'],i:-1,act});
 }
 function renderBool(f){
- const X=F[f];CURQ={say:X.ask};
+ const X=F[f];CURQ={say:gx(X.ask)};
  const w=qWrap(X.ico,`Otázka ${S.dx.n+1}`+(S.dx.mode==='obs'?' · pozoruj':''),X.ask,X.hint);
  const box=el('div','opts');
  [{l:'Áno',ico:'✅',v:true,kw:['ano','hej','jo','ma','mal','je']},{l:'Nie',ico:'❌',v:false,kw:['nie','nema','nemal','neni']},{l:'Neviem',ico:'❓',v:'?',kw:['neviem','nevie','netusim']}]
@@ -306,9 +316,9 @@ function renderResult(){
  const {lv,R,sf}=verdict(),A=S.dx.A,L=KB.LEVEL[lv];
  const w=el('div');
  const c=el('div','result '+lv,`<div class="step" style="color:inherit;opacity:.85"><span class="big">${L.ico}</span><span>Výsledok</span></div><h1>${L.label}</h1>`);
- c.append(el('ul','list',L.advice.map(x=>`<li>${esc(x)}</li>`).join('')));w.append(c);
+ c.append(el('ul','list',L.advice.map(x=>`<li>${esc(gx(x))}</li>`).join('')));w.append(c);
  const why=sf.filter(r=>r.u==='red'||r.u==='orange');
- if(why.length)w.append(el('div','card',`<h2>Prečo</h2><ul class="list">${why.map(r=>`<li>${r.u==='red'?'🔴':'🟠'} ${esc(r.why)}</li>`).join('')}</ul>`));
+ if(why.length)w.append(el('div','card',`<h2>Prečo</h2><ul class="list">${why.map(r=>`<li>${r.u==='red'?'🔴':'🟠'} ${esc(gx(r.why))}</li>`).join('')}</ul>`));
  if(S.dx.mainDone){
   const card=el('div','card');card.append(el('h2','','🔍 Možné príčiny'));
   card.append(el('p','small','Hrubý odhad podľa odpovedí – nie diagnóza.'));
@@ -323,7 +333,7 @@ function renderResult(){
    card.append(row)});
   w.append(card);
   const top=R[0];if(top.c.id!=='other'&&top.p>=.25&&top.c.aid.length)
-   w.append(el('div','card',`<h2>🩹 Čo robiť pri: ${esc(top.c.name.toLowerCase())}</h2><ul class="list">${top.c.aid.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="small">Zdroj: ${(top.c.src||[]).map(k=>KB.REFS[k]?esc(KB.REFS[k].t.split(' – ')[0]):'').filter(Boolean).join('; ')||'–'}</p>`));
+   w.append(el('div','card',`<h2>🩹 Čo robiť pri: ${esc(top.c.name.toLowerCase())}</h2><ul class="list">${top.c.aid.map(x=>`<li>${esc(gx(x))}</li>`).join('')}</ul><p class="small">Zdroj: ${(top.c.src||[]).map(k=>KB.REFS[k]?esc(KB.REFS[k].t.split(' – ')[0]):'').filter(Boolean).join('; ')||'–'}</p>`));
  }
  const box=el('div','opts');
  if(lv==='red'||lv==='orange')box.append(callBtn('155'));
