@@ -12,7 +12,7 @@
    SAFETY= bezpečnostné pravidlá nezávislé od diagnózy (minimálna naliehavosť + okamžitý pokyn).
    ===================================================================== */
 const KB = {
-version: '0.11',
+version: '0.12',
 
 /* ---------- ZDROJE ---------- */
 REFS: {
@@ -1117,7 +1117,7 @@ ALERTS: {
   q:'Ak je pri vedomí a bezpečne prehĺta: daj 15–20 g cukru – sladký nápoj (džús, sladená limonáda), 3–4 kocky cukru alebo glukózové tablety. Ak je ospalý alebo sa dusí, nič mu nedávaj do úst a volaj 155. O 10–15 minút sa ťa opýtam, či sa zlepšil.'},
  abdomen:{t:'Náhla brušná príhoda',ico:'🧱',q:'Volaj 155. Nech nič neje ani nepije a leží v polohe, ktorá ho najmenej bolí (často s pokrčenými nohami).'},
  gibleed:{t:'Krvácanie do tráviaceho traktu',ico:'🩸',q:'Volaj 155. Nech leží, pri slabosti mu zdvihni nohy. Nič mu nedávaj jesť ani piť. Ak zvracia, ulož ho na bok.'},
- mvc:{t:'Po dopravnej nehode',ico:'🚗',call:'112',q:'Ak ešte nikto nevolal, volaj 112 (záchranka, hasiči aj polícia naraz). Nevyťahuj ho z auta, ak nehrozí požiar alebo iné nebezpečenstvo. Drž mu hlavu v osi s telom, motocyklistovi nesnímaj prilbu, ak normálne dýcha. Prikry ho, aby neprechladol.'},
+ mvc:{t:'Po dopravnej nehode',ico:'🚗',call:'112',q:'Zabezpeč miesto: výstražné svetlá, reflexná vesta, trojuholník, vypni motor, nefajči. Ak je zranených viac, najprv tí, ktorí nereagujú alebo nedýchajú, potom silné krvácanie. Ak ešte nikto nevolal, volaj 112 (záchranka, hasiči aj polícia naraz). Nevyťahuj ho z auta, ak nehrozí požiar alebo iné nebezpečenstvo. Drž mu hlavu v osi s telom, motocyklistovi nesnímaj prilbu, ak normálne dýcha. Prikry ho, aby neprechladol.'},
  spine:{t:'Možné poranenie chrbtice',ico:'🦴',q:'Volaj 155. Nehýb s ním – nech zostane v polohe, v ktorej je, a drž mu hlavu v osi s telom. Hýb ním len ak hrozí nebezpečenstvo alebo nedýcha.'},
  hip:{t:'Možná zlomenina bedra',ico:'🦵',q:'Volaj 155 – na prevoz treba záchranku. Nehýb s ním, podlož mu hlavu, prikry ho. Nedávaj mu jesť ani piť.'},
  fracture:{t:'Možná zlomenina',ico:'🦴',call:'none',cont:'Pokračovať',q:'Znehybni končatinu v polohe, v akej je (šatka, vankúš, dlaha). Chlaď zabaleným ľadom najviac 20 minút. Pri otvorenej zlomenine alebo studenej, modrej končatine volaj 155.'},

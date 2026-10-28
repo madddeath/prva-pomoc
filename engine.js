@@ -19,7 +19,7 @@ var OFFN=.35;
 /* základné triážne otázky (ako vitálne funkcie v ESI/CTAS) sa pýtajú vždy, bez ohľadu na zvolenú oblasť */
 var CORE=new Set(['fever','dyspnea','chest_pain','confusion','abd_pain','headache','fainted','weakness','vomiting']);
 function offSet(){const D=S.dx;if(!D||!D.cats||!D.cats.length||!KB.CATS)return new Set();
- const key=D.cats.join(',');if(D._offKey===key)return D._off;
+ const key=D.cats.join(',');if(D._offKey===key&&D._off instanceof Set)return D._off;
  const inC=new Set();KB.CATS.filter(c=>D.cats.includes(c.id)).forEach(c=>c.items.forEach(f=>inC.add(f)));
  D._off=new Set(KB.MAIN.filter(f=>!inC.has(f)&&!CORE.has(f)&&!F[f].rf));D._offKey=key;return D._off}
 function postVec(A){

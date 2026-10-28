@@ -29,17 +29,22 @@ let CUR=[],timers=[],CURQ=null;
 function addLog(k,txt){S.log.push({k,t:tm(),txt})}
 function logCall(num){if(!S.called[num]){S.called[num]=true;addLog('a','Volané '+num)}}
 function snap(){const {hist,...rest}=S;return JSON.stringify(rest)}
+/* uloženie stavu – ak telefón appku na pozadí zavrie, po návrate pokračuje tam, kde si bol */
+function save(){try{localStorage.setItem('pp_state',JSON.stringify({t:Date.now(),S,OVER,LOC}))}catch(e){}}
+function restore(){try{const j=JSON.parse(localStorage.getItem('pp_state')||'null');if(!j||Date.now()-j.t>6*3600e3||!j.S||j.S.node==='START')return false;
+ S=j.S;if(j.LOC&&!j.LOC.busy)LOC=j.LOC;show(S.node);if(j.OVER==='sum')showSummary();else if(j.OVER==='brief')showBrief();toast('Pokračujeme tam, kde si skončil');return true}catch(e){return false}}
 function pushHist(){S.hist.push(snap())}
-function back(){if(!S.hist.length){toast('Si na začiatku');return}const h=S.hist;const st=JSON.parse(h.pop());S={...st,hist:h};show(S.node)}
+let OVER=null;
+function back(){if(OVER){OVER=null;save();show(S.node);return}if(!S.hist.length){toast('Si na začiatku');return}const h=S.hist;const st=JSON.parse(h.pop());S={...st,hist:h};show(S.node)}
 
 /* =====================================================================
    OBSAH TOKU (primárne vyšetrenie zostáva pevný protokol)
    ===================================================================== */
 const onsetOpts=next=>[
- {l:'Pred chvíľou (do 1 hodiny)',ico:'⏱️',h:1,kw:['chvilou','chvilu','do hodiny']},
- {l:'Pred 1 – 4 hodinami',ico:'🕐',h:4,kw:['jednu az styri','par hodin']},
- {l:'Pred 4 – 24 hodinami',ico:'🕓',h:24,kw:['dnes','rano','vcera']},
- {l:'Dlhšie, zhoršuje sa postupne',ico:'📅',h:99,kw:['dlhsie','postupne','dni']},
+ {l:'Pred chvíľou (do hodiny)',ico:'⏱️',h:1,kw:['chvilou','chvilu','do hodiny']},
+ {l:'Pred pár hodinami (1 – 4 h)',ico:'🕐',h:4,kw:['jednu az styri','par hodin']},
+ {l:'Dnes alebo od včera',ico:'🕓',h:24,kw:['dnes','rano','vcera']},
+ {l:'Už niekoľko dní',ico:'📅',h:99,kw:['dlhsie','postupne','dni']},
  {l:'Neviem',ico:'❓',h:null,kw:['neviem']}
 ].map(o=>({...o,go:next,set:S=>{S.onset=true;S.onsetH=o.h;S.onsetTxt=o.l;
   if(o.h!==null)S.dx.A.confusion_sudden=o.h<=4?true:(o.h>=99?false:undefined);if(S.dx.A.confusion_sudden===undefined)delete S.dx.A.confusion_sudden}}));
@@ -95,7 +100,7 @@ S2:{step:'Krok 2',ico:'⚠️',t:'Ohrozuje ho niečo práve teraz?',
   {l:'Ťažko dýcha',ico:'😮‍💨',go:'DX',set:S=>{S.dx.A.dyspnea=true;S.scen+=' · dýchavica'},kw:['dycha','tazko']},
   {l:'Zaseklo sa mu sústo, ale dýcha',ico:'🍖',go:'DX',set:S=>{S.dx.A.food_stuck=true;S.scen+=' · zaseknuté sústo'},kw:['sustom','zaseklo','jedlo']},
   {l:'Nič z toho',ico:'➜',cls:'primary',go:'DX',kw:['nic','nie','dalej']}]},
-ONSET:{step:'Začiatok ťažkostí',ico:'🕐',t:'Kedy bol naposledy úplne v poriadku?',q:'Pri mozgovej príhode a úrazoch je tento čas pre lekárov veľmi dôležitý.',opts:onsetOpts('DX')},
+ONSET:{step:'Začiatok ťažkostí',ico:'🕐',t:'Odkedy má tieto ťažkosti?',q:'Ak to nevieš presne, odhadni. Pri mozgovej príhode a úrazoch rozhoduje každá hodina.',opts:onsetOpts('DX')},
 DX:{type:'dx'},
 DXR:{type:'dxr'}
 };
@@ -126,12 +131,12 @@ function summaryText(){
  const sx=sexLabel(S.dx.A);
  const p=[sx,age].filter(Boolean).join(', ');if(p)s+=`Pacient: ${p}\n`;
  const vit=[S.dx.A.bp&&S.dx.A.bp!=='?'?'TK '+V.bp.vals.find(x=>x[0]===S.dx.A.bp)[1]:'',S.dx.A.pulse&&S.dx.A.pulse!=='?'?'pulz '+V.pulse.vals.find(x=>x[0]===S.dx.A.pulse)[1]:'',S.dx.A.glu&&S.dx.A.glu!=='?'?'glykémia '+V.glu.vals.find(x=>x[0]===S.dx.A.glu)[1]:''].filter(Boolean).join(', ');if(vit)s+=`Namerané: ${vit}\n`;
- if(S.onsetTxt)s+=`Naposledy v poriadku: ${S.onsetTxt.toLowerCase()}\n`;
+ if(S.onsetTxt)s+=`Ťažkosti začali: ${S.onsetTxt.toLowerCase()}\n`;
  {const l=locLines();if(l&&!l.err)s+=`Poloha: ${l.addr?l.addr+' · ':''}GPS ${l.dec} (±${l.acc} m)\n`}
  const Fd=S.log.filter(x=>x.k==='f'),Ad=S.log.filter(x=>x.k==='a');
  const yes=Fd.filter(x=>!/: nie$|: nevie$/.test(x.txt)),no=Fd.filter(x=>/: nie$/.test(x.txt));
  s+='\nZISTENÉ:\n'+(yes.length?yes.map(x=>`• ${x.t}  ${x.txt.replace(/: áno$/,'')}`).join('\n'):'• –');
- if(no.length)s+='\n\nNEPRÍTOMNÉ: '+no.map(x=>x.txt.replace(/: nie$/,'').toLowerCase()).join(', ');
+ if(no.length)s+='\n\nVYLÚČILI SME: '+no.map(x=>x.txt.replace(/: nie$/,'').toLowerCase()).join(', ');
  s+='\n\nVYKONANÉ:\n'+(Ad.length?Ad.map(x=>`• ${x.t}  ${x.txt}`).join('\n'):'• –');
  s+=`\n\nVÝSLEDOK SPRIEVODCU: ${KB.LEVEL[lv].label}`;
  const why=sf.filter(r=>r.u!=='green').map(r=>r.why);if(why.length)s+='\n'+why.map(x=>'! '+x).join('\n');
@@ -220,7 +225,7 @@ function briefCard(opts={}){
  return c;
 }
 function showBrief(){
- stopScreen();const ret=S.node;app.innerHTML='';CUR=[];window.scrollTo(0,0);
+ stopScreen();OVER='brief';save();const ret=S.node;app.innerHTML='';CUR=[];window.scrollTo(0,0);
  const w=el('div');w.append(el('div','step','<span class="big">📞</span><span>Hovor so záchrankou</span>'));
  w.append(el('h1','','Toto povedz dispečerovi'));
  w.append(briefCard({autoLoc:true}));
@@ -321,9 +326,10 @@ function proceed(next,al){if(al&&!S.alerts.includes(al)){S.alerts.push(al);S.aft
 function choose(n,o){pushHist();apply(o);proceed(nextOf(n,o),o.alert)}
 function stopScreen(){timers.forEach(clearInterval);timers=[]}
 function show(id){
- stopScreen();S.node=id;const n=N[id];recTries=0;pauseRec();
+ stopScreen();OVER=null;S.node=id;const n=N[id];recTries=0;pauseRec();
  app.innerHTML='';CUR=[];CURQ=null;window.scrollTo(0,0);
  ({start:renderStart,cpr:renderCPR,dx:renderDX,dxr:renderResult}[n.type]||renderQ)(n);
+ save();
  if(S.node!==id)return; // počas renderu sa presmerovalo (napr. na upozornenie)
  if(n.type==='dx'){const bn=alertBanner();if(bn)app.prepend(bn);if(S.newAlert&&CURQ){const y=KB.ALERTS[S.newAlert];CURQ.say='Pozor: '+gx(y.t)+'. '+(y.call==='none'?'':'Zváž volanie '+(y.callLabel||y.call||'155')+'. ')+CURQ.say}S.newAlert=null}
  if(n.type!=='start')speakNode();else if(listening)startRec();
@@ -531,7 +537,6 @@ function renderStart(){
  const box=el('div','opts');
  const act=()=>{speak('');choose(N.START,{go:'S1'})};
  box.append(optBtn({l:'Začať',ico:'▶',cls:'primary'},0,act));reg({l:'zacat',kw:['zacat','start','zacni']},0,act);
- const nh=()=>{speak('');choose(N.START,{go:'NEHODA'})};box.append(optBtn({l:'Dopravná nehoda',ico:'🚗'},1,nh));reg({l:'nehoda',kw:['nehoda','havaria','auto']},1,nh);
  box.append(callBtn('155'));w.append(box);
  w.append(el('div','card',`<h2>Ako to funguje</h2><ul class="list small">
   <li>Najprv overí to najdôležitejšie: vedomie, dýchanie, bezprostredné ohrozenie.</li>
@@ -585,7 +590,7 @@ function renderCPR(){
 
 /* ---------- súhrn ---------- */
 function showSummary(){
- stopScreen();app.innerHTML='';CUR=[];window.scrollTo(0,0);
+ stopScreen();OVER='sum';save();app.innerHTML='';CUR=[];window.scrollTo(0,0);
  const w=el('div');
  w.append(el('div','step','<span class="big">📋</span><span>Súhrn</span>'));
  w.append(el('h1','','Súhrn pre záchranku / lekára'));
@@ -599,7 +604,7 @@ function showSummary(){
   .forEach((o,i)=>{box.append(optBtn(o,i,o.run));reg(o,i,o.run)});
  w.append(box);app.append(w);
 }
-function restart(){if('speechSynthesis' in window)speechSynthesis.cancel();S=fresh();show('START')}
+function restart(){try{localStorage.removeItem('pp_state')}catch(e){}if('speechSynthesis' in window)speechSynthesis.cancel();S=fresh();show('START')}
 
 /* ---------- toolbar ---------- */
 $('#bBack').onclick=back;$('#bNew').onclick=restart;$('#bSum').onclick=showSummary;
@@ -612,5 +617,5 @@ $('#bMic').onclick=()=>{
  recTries=0;startRec();updMic();
 };
 document.querySelectorAll('[data-call]').forEach(a=>a.addEventListener('click',()=>{logCall(a.dataset.call);toast('Ak sa hovor nespustil, vytoč '+a.dataset.call+' ručne')}));
-show('START');
+if(!restore())show('START');
 try{if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update())}catch(e){}
