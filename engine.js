@@ -17,7 +17,7 @@ function urgOf(c,A){return typeof c.urg==='function'?c.urg(A):c.urg}
 /* príznaky z oblastí, ktoré používateľ nevybral = slabé „nie" (inak by ostali vo hre napr. popálenina pri psychike) */
 var OFFN=.35;
 /* základné triážne otázky (ako vitálne funkcie v ESI/CTAS) sa pýtajú vždy, bez ohľadu na zvolenú oblasť */
-var CORE=new Set(['fever','dyspnea','chest_pain','confusion','abd_pain','headache','fainted','bleeding_heavy','weakness','vomiting']);
+var CORE=new Set(['fever','dyspnea','chest_pain','confusion','abd_pain','headache','fainted','weakness','vomiting']);
 function offSet(){const D=S.dx;if(!D||!D.cats||!D.cats.length||!KB.CATS)return new Set();
  const key=D.cats.join(',');if(D._offKey===key)return D._off;
  const inC=new Set();KB.CATS.filter(c=>D.cats.includes(c.id)).forEach(c=>c.items.forEach(f=>inC.add(f)));
@@ -75,7 +75,8 @@ function recheck(P){const D=S.dx,A=D.A;if(!D.soft)return null;
   const old=A[f];A[f]=true;let lv='green';safety(A).forEach(r=>lv=lvMax(lv,r.u));A[f]=old;
   const gain=LV.indexOf(lv)-LV.indexOf(cur);if(gain<=0)continue;
   let py=0;C.forEach((c,i)=>py+=P[i]*pf(c,f));const sc=py*gain;
-  if(py>=.1&&sc>bs){bs=sc;best={kind:'bool',id:f,sc,recheck:true}}}
+  const thr=(D.cats&&KB.CATS&&KB.CATS.some(c=>D.cats.includes(c.id)&&c.items.includes(f)))?.03:.1; // príznak z vybranej oblasti, ktorý by zvýšil naliehavosť – radšej sa opýtať
+  if(py>=thr&&sc>bs){bs=sc;best={kind:'bool',id:f,sc,recheck:true}}}
  return best;
 }
 function safety(A){const out=[];KB.SAFETY.forEach(r=>{try{if(r.when(A,S)){out.push({...r,u:typeof r.urg==='function'?r.urg(A):r.urg})}}catch(e){}});return out}

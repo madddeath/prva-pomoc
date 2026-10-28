@@ -228,9 +228,12 @@ function alertBanner(){
  let lv='orange';if(sf.some(r=>r.u==='red'))lv='red';
  const rs=sf.filter(r=>r.u===lv),ks=[...new Set(sf.map(r=>r.alert).filter(k=>k&&KB.ALERTS[k]&&!BLOCK.has(k)))];
  const L=KB.LEVEL[lv],b=el('div','banner'+(lv==='orange'?' or':''));
+ const t=ranked(A)[0];let reason;
+ if(S.dx.mainDone&&t.c.id!=='other'&&t.p>=.3&&urgOf(t.c,A)===lv)reason=`${t.p>=.5?'Najviac sedí':'Podozrenie na'}: <b>${esc(t.c.name)}</b>`;
+ else reason='Dôvod: '+esc(gx(rs[0].why))+(rs.length>1?` (+${rs.length-1} ďalší)`:'');
  const extra=ks.map(k=>KB.ALERTS[k]).filter(a=>a.call&&a.call!=='155'&&a.call!=='none');
  b.innerHTML=`<div class="bt"><span>${L.ico}</span><b>${esc(L.label)}</b></div>
-  <div class="small bw">Dôvod: ${esc(gx(rs[0].why))}${rs.length>1?` (+${rs.length-1} ďalší)`:''}</div>
+  <div class="small bw">${reason}</div>
   <div class="bb"><a class="bbtn call" href="tel:155">📞 155</a><button class="bbtn" data-brief>Čo povedať</button>${ks.length?'<button class="bbtn" data-what>Čo robiť ▾</button>':''}</div>
   <div class="bq" hidden>${sf.length>1?`<p><b>Všetky dôvody:</b> ${sf.map(r=>esc(gx(r.why))).join(' · ')}</p>`:''}${ks.map(x=>{const y=KB.ALERTS[x];return `<p><b>${y.ico||''} ${esc(gx(y.t))}:</b> ${esc(gx(y.q||''))}</p>`}).join('')}${extra.map(a=>`<a class="bbtn" href="tel:${a.call}">📞 ${esc(a.callLabel||a.call)}</a> `).join('')}<p class="small bw">Varovné príznaky sa vyhodnocujú zvlášť od odhadu príčiny: aj keď najviac sedí iná príčina, tieto príznaky laik nevie bezpečne vylúčiť. Otázky môžeš dokončiť aj počas čakania na záchranku.</p></div>`;
  b.querySelector('.call').onclick=()=>logCall('155');
@@ -347,7 +350,7 @@ function answer(id,val,label){
 }
 function hypLine(){
  const R=ranked(S.dx.A);const t=R[0];if(!S.dx.mainDone||t.c.id==='other'||t.p<.25)return null;
- return el('p','small',`Zatiaľ najviac sedí: <b>${esc(t.c.name)}</b> (${Math.round(t.p*100)} %)`);
+ return el('p','small',`${t.p>=.5?'Zatiaľ najviac sedí':'Podozrenie na'}: <b>${esc(t.c.name)}</b> (${Math.round(t.p*100)} %)${t.p<.5?' – zatiaľ neisté':''}`);
 }
 function renderDX(){
  const D=S.dx,A=D.A;
@@ -358,6 +361,8 @@ function renderDX(){
  if(!D.catsDone)return renderCats();
  if(!D.mainDone)return renderMain();
  const nx=pickNext();if(!nx){show('DXR');return}
+ if(nx.kind==='bool'){const g=(KB.GROUPS||[]).find(g=>g.opts.some(o=>o[1]===nx.id)&&g.when(A));
+  if(g){const el2=g.opts.filter(o=>o[1]&&eligible(o[1],false));if(el2.length>=2)return renderGroup(g,el2)}}
  nx.kind==='var'?renderVar(nx.id):renderBool(nx.id);
 }
 function qWrap(ico,step,title,hint){
@@ -380,6 +385,18 @@ function renderBool(f){
  finishBtn(box);w.append(box);app.append(w);
  if(listening)CURQ.say+='. Áno, nie, alebo neviem?';
 }
+function renderGroup(g,mem){
+ const D=S.dx,A=D.A;CURQ={say:g.ask};
+ const w=qWrap(g.ico,`Otázka ${D.n+1}`,g.ask,g.hint);const box=el('div','opts');
+ const ids=mem.map(o=>o[1]);
+ const opts=g.opts.filter(o=>!o[1]||ids.includes(o[1]));
+ const set=pick=>{pushHist();ids.forEach(f=>{A[f]=(f===pick);D.asked.push(f);if(D.soft)delete D.soft[f]});D.n++;
+  addLog('f',g.ask.replace(/\?.*$/,'')+': '+(pick?F[pick].t:opts.find(o=>!o[1])[0]));show('DX')};
+ opts.forEach((o,i)=>{const act=()=>set(o[1]);box.append(optBtn({l:o[0],ico:o[2]||'•'},i,act));reg({l:o[0]},i,act)});
+ const nv=()=>{pushHist();ids.forEach(f=>D.asked.push(f));D.n++;addLog('f',g.ask.replace(/\?.*$/,'')+': nevie');show('DX')};
+ box.append(optBtn({l:'Neviem',ico:'❓',cls:'ghost'},opts.length,nv));reg({l:'Neviem',kw:['neviem']},opts.length,nv);
+ finishBtn(box);w.append(box);app.append(w);
+}
 function renderVar(v){
  const X=V[v];CURQ={say:X.ask};
  const w=qWrap(X.ico,(v==='age'||v==='sex')?'Krok 3 · Kto to je':`Otázka ${S.dx.n+1}`,X.ask);
@@ -392,18 +409,37 @@ function renderVar(v){
 }
 const dispOk=(f,A)=>{const X=F[f];if(S.dx.mode==='obs'&&!X.obs)return false;if(A[f]===true)return true;try{return X.disp?X.disp(A):(!X.req||X.req(A))}catch(e){return true}};
 function renderCats(){
- CURQ={say:'Kde je hlavný problém? Vyber jednu alebo viac oblastí a potom povedz hotovo.'};
+ CURQ={say:'Čo sa deje? Ťukni na oblasť, rozbalia sa príznaky. Označ všetko, čo platí, a potom povedz hotovo.'};
  const D=S.dx,A=D.A;
- const w=qWrap('🧭','Krok 4 · Hlavný problém','Kde je hlavný problém?','Vyber jednu alebo viac oblastí. V ďalšom kroku ukážem len príznaky z nich.');
- const sel=new Set(D.cats||[]);const box=el('div','opts grid2');
- KB.CATS.filter(c=>{try{return !c.show||c.show(A)}catch(e){return true}}).forEach((c,i)=>{
-  const b=optBtn({l:c.t,ico:c.ico},i,()=>tog());if(sel.has(c.id))b.classList.add('sel');
-  const tog=()=>{sel.has(c.id)?sel.delete(c.id):sel.add(c.id);b.classList.toggle('sel',sel.has(c.id))};b.onclick=tog;box.append(b);
-  reg({l:c.t,kw:c.t.split(/[ ,]+/).filter(x=>x.length>=4)},i,()=>{tog();toast((sel.has(c.id)?'Označené: ':'Odznačené: ')+c.t)})});
- w.append(box);
+ const w=qWrap('🧭','Krok 4 · Čo sa deje','Kde je problém a čo pozoruješ?','Ťukni na oblasť – rozbalia sa jej príznaky. Označ všetko, čo platí (aj vo viacerých oblastiach).');
+ const cats=KB.CATS.filter(c=>{try{return !c.show||c.show(A)}catch(e){return true}});
+ const sel=new Set(KB.MAIN.filter(f=>A[f]===true));
+ const open=new Set(D.cats||[]);cats.forEach(c=>{if(c.items.some(f=>sel.has(f)&&dispOk(f,A)))open.add(c.id)});
+ if(sel.size)w.append(el('p','small','✓ Niektoré príznaky sú už označené podľa tvojich predchádzajúcich odpovedí. Ak neplatia, odznač ich.'));
+ const btns={};const heads={};
+ const cnt=c=>c.items.filter(f=>sel.has(f)&&dispOk(f,A)).length;
+ const updHead=c=>{const h=heads[c.id];const n=cnt(c);h.classList.toggle('sel',open.has(c.id)||n>0);
+  h.querySelector('.num').textContent=(n?n+' ✓  ':'')+(open.has(c.id)?'▴':'▾')};
+ const togF=f=>{sel.has(f)?sel.delete(f):sel.add(f);(btns[f]||[]).forEach(b=>b.classList.toggle('sel',sel.has(f)));cats.forEach(c=>{if(c.items.includes(f))updHead(c)})};
+ const list=el('div','opts');
+ cats.forEach((c,ci)=>{
+  const vis=c.items.filter(f=>dispOk(f,A));
+  const h=optBtn({l:c.t,ico:c.ico},-1,()=>tog());h.classList.add('cat');h.append(el('span','num',''));heads[c.id]=h;
+  const body=el('div','opts grid2 catbody');
+  vis.forEach(f=>{const X=F[f];const b=optBtn({l:X.t,ico:X.ico},-1,()=>togF(f));b.classList.add('small-opt');if(sel.has(f))b.classList.add('sel');(btns[f]=btns[f]||[]).push(b);body.append(b);
+   reg({l:X.t,kw:[X.t.split(' ')[0]]},-1,()=>{if(!open.has(c.id))return;togF(f);toast((sel.has(f)?'Označené: ':'Odznačené: ')+X.t)})});
+  body.hidden=!open.has(c.id);
+  const tog=()=>{open.has(c.id)?open.delete(c.id):open.add(c.id);body.hidden=!open.has(c.id);updHead(c);if(!body.hidden)setTimeout(()=>h.scrollIntoView({behavior:'smooth',block:'start'}),30)};
+  reg({l:c.t,kw:c.t.split(/[ ,]+/).filter(x=>x.length>=4)},-1,()=>{tog();toast((open.has(c.id)?'Otvorené: ':'Zatvorené: ')+c.t)});
+  list.append(h,body);updHead(c)});
+ w.append(list);
  const b2=el('div','opts');
- const done=()=>{pushHist();D.cats=[...sel];D.catsDone=true;if(!sel.size){D.mainDone=true}show('DX')};
- const d=optBtn({l:'Pokračovať',ico:'➜'},-1,done);d.classList.add('primary');b2.append(d);
+ const done=()=>{pushHist();
+  const ch=cats.filter(c=>open.has(c.id)||cnt(c)>0);D.cats=ch.map(c=>c.id);
+  const shown=new Set();ch.forEach(c=>c.items.forEach(f=>{if(dispOk(f,A))shown.add(f)}));
+  shown.forEach(f=>{if(sel.has(f)){if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}}else if(A[f]===undefined){A[f]=false;(D.soft=D.soft||{})[f]=true}});
+  D.catsDone=true;D.mainDone=true;show('DX')};
+ const d=optBtn({l:'Hotovo – pokračovať',ico:'➜'},-1,done);d.classList.add('primary');b2.append(d);
  const none=()=>{pushHist();D.cats=[];D.catsDone=true;D.mainDone=true;show('DX')};
  b2.append(optBtn({l:'Neviem / nič konkrétne',ico:'❓',cls:'ghost'},-1,none));
  CUR.push({kw:['hotovo','dalej','pokracovat'],i:-1,act:done});CUR.push({kw:['neviem','nic konkretne'],i:-1,act:none});
