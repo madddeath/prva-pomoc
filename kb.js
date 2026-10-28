@@ -12,7 +12,7 @@
    SAFETY= bezpečnostné pravidlá nezávislé od diagnózy (minimálna naliehavosť + okamžitý pokyn).
    ===================================================================== */
 const KB = {
-version: '0.9',
+version: '0.9.1',
 
 /* ---------- ZDROJE ---------- */
 REFS: {

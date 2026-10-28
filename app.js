@@ -418,6 +418,7 @@ function renderMain(){
    const tog=()=>{sel.has(f)?sel.delete(f):sel.add(f);b.classList.toggle('sel',sel.has(f))};b.onclick=tog;box.append(b);
    reg({l:X.t,kw:[X.t.split(' ')[0]]},n,()=>{tog();toast((sel.has(f)?'Označené: ':'Odznačené: ')+X.t)})});
   w.append(box)});
+ if([...sel].some(f=>shown.includes(f)))w.insertBefore(el('p','small','✓ Niektoré príznaky sú už označené podľa tvojich predchádzajúcich odpovedí. Ak neplatia, ťukni na ne a odznač ich.'),w.querySelector('.grp'));
  const done=()=>{pushHist();shown.forEach(f=>{if(sel.has(f)){if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}}else if(A[f]===undefined){A[f]=false;(D.soft=D.soft||{})[f]=true}});D.mainDone=true;show('DX')};
  const box=el('div','opts');const d=optBtn({l:'Hotovo',ico:'➜'},-1,done);d.classList.add('primary');box.append(d);
  CUR.push({kw:['hotovo','dalej','nic z toho','pokracovat'],i:-1,act:done});
