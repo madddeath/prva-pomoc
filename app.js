@@ -119,6 +119,7 @@ function summaryText(){
  const p=[sx,age].filter(Boolean).join(', ');if(p)s+=`Pacient: ${p}\n`;
  const vit=[S.dx.A.bp&&S.dx.A.bp!=='?'?'TK '+V.bp.vals.find(x=>x[0]===S.dx.A.bp)[1]:'',S.dx.A.pulse&&S.dx.A.pulse!=='?'?'pulz '+V.pulse.vals.find(x=>x[0]===S.dx.A.pulse)[1]:'',S.dx.A.glu&&S.dx.A.glu!=='?'?'glykémia '+V.glu.vals.find(x=>x[0]===S.dx.A.glu)[1]:''].filter(Boolean).join(', ');if(vit)s+=`Namerané: ${vit}\n`;
  if(S.onsetTxt)s+=`Naposledy v poriadku: ${S.onsetTxt.toLowerCase()}\n`;
+ {const l=locLines();if(l&&!l.err)s+=`Poloha: ${l.addr?l.addr+' · ':''}GPS ${l.dec} (±${l.acc} m)\n`}
  const Fd=S.log.filter(x=>x.k==='f'),Ad=S.log.filter(x=>x.k==='a');
  const yes=Fd.filter(x=>!/: nie$|: nevie$/.test(x.txt)),no=Fd.filter(x=>/: nie$/.test(x.txt));
  s+='\nZISTENÉ:\n'+(yes.length?yes.map(x=>`• ${x.t}  ${x.txt.replace(/: áno$/,'')}`).join('\n'):'• –');
@@ -129,6 +130,109 @@ function summaryText(){
  if(S.dx.mainDone){s+='\n\nMOŽNÉ PRÍČINY (laický odhad, nie diagnóza):\n'+R.slice(0,3).map(({c,p})=>`• ${c.name} – ${Math.round(p*100)} %`).join('\n')}
  s+='\n\n(Laické posúdenie, nie diagnóza.)';
  return gx(s);
+}
+/* =====================================================================
+   BRIEF PRE DISPEČING + POLOHA
+   ===================================================================== */
+const BLOCK=new Set(['unc','danger','airway','anaph','bleed']); // tieto prerušia otázky; ostatné len pruh hore
+let LOC=null; // {lat,lon,acc,addr,err,busy}
+function fmtDMS(v,pos,neg){const h=v>=0?pos:neg;v=Math.abs(v);const d=Math.floor(v),m=Math.floor((v-d)*60),s=((v-d)*60-m)*60;return `${d}°${String(m).padStart(2,'0')}'${s.toFixed(1).padStart(4,'0')}"${h}`}
+function locLines(){
+ if(!LOC||LOC.busy)return null;if(LOC.err)return {err:LOC.err};
+ const la=LOC.lat.toFixed(5),lo=LOC.lon.toFixed(5);
+ return {dec:`${la} N, ${lo} E`,say:`${la.replace('.',',')} severne, ${lo.replace('.',',')} východne`,dms:`${fmtDMS(LOC.lat,'N','S')} ${fmtDMS(LOC.lon,'E','W')}`,acc:Math.round(LOC.acc),addr:LOC.addr};
+}
+function getLoc(cb){
+ if(!('geolocation' in navigator)){LOC={err:'Telefón neposkytuje polohu.'};cb&&cb();return}
+ LOC={busy:true};cb&&cb();
+ navigator.geolocation.getCurrentPosition(p=>{
+  LOC={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy,addr:null};addLog('a','Poloha GPS zistená');cb&&cb();
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=sk&lat=${LOC.lat}&lon=${LOC.lon}`)
+   .then(r=>r.json()).then(j=>{const a=j.address||{};
+    const street=[a.road||a.pedestrian||a.footway||a.path,a.house_number].filter(Boolean).join(' ');
+    const town=a.city||a.town||a.village||a.municipality||a.hamlet||'';
+    const part=a.suburb||a.city_district||a.quarter||'';
+    const s=[street,part&&part!==town?part:'',town].filter(Boolean).join(', ');
+    if(LOC&&!LOC.err){LOC.addr=s||null;cb&&cb()}}).catch(()=>{});
+ },e=>{LOC={err:e.code===1?'Prístup k polohe je zakázaný – povoľ ho v nastaveniach prehliadača.':'Polohu sa nepodarilo zistiť (skús vonku alebo zapni GPS).'};cb&&cb()},
+ {enableHighAccuracy:true,timeout:20000,maximumAge:30000});
+}
+function keyFindings(){
+ const A=S.dx.A,soft=S.dx.soft||{};
+ const pos=Object.keys(A).filter(k=>F[k]&&A[k]===true&&!soft[k]&&!(k==='confusion_sudden'&&A.confusion!==true));
+ pos.sort((a,b)=>(F[b].rf?1:0)-(F[a].rf?1:0));
+ return pos.map(k=>F[k].t);
+}
+function briefData(){
+ const A=S.dx.A,vv=(k)=>A[k]&&A[k]!=='?'?V[k].vals.find(x=>x[0]===A[k])[1]:'';
+ const who=[vv('sex'),vv('age')].filter(Boolean).join(', ')||'–';
+ const fx=keyFindings();
+ const vit=[vv('bp')&&'tlak '+vv('bp'),vv('pulse')&&'pulz '+vv('pulse'),vv('temp')&&'teplota '+vv('temp'),vv('glu')&&'cukor '+vv('glu'),vv('pain')&&'bolesť '+vv('pain')].filter(Boolean);
+ const done=S.log.filter(x=>x.k==='a'&&!/^Volané|^Poloha/.test(x.txt)).map(x=>x.txt);
+ const st=(S.scen||'').split(' · ').filter(Boolean);
+ return {who,fx,vit,done,st,onset:S.onsetTxt};
+}
+function briefText(){
+ const b=briefData(),l=locLines();let s='';
+ s+='KDE: '+(l&&!l.err?((l.addr?l.addr+' · ':'')+'GPS '+l.dec+' (±'+l.acc+' m)'):'[povedz adresu alebo opíš miesto]')+'\n';
+ s+='KTO: '+b.who+'\n';
+ s+='ČO SA DEJE: '+(b.fx.slice(0,6).join('; ')||b.st.join(', ')||'–')+'\n';
+ if(b.onset)s+='ZAČIATOK: '+b.onset.toLowerCase()+'\n';
+ if(b.st.length)s+='STAV: '+b.st.join(', ')+'\n';
+ if(b.vit.length)s+='NAMERANÉ: '+b.vit.join(', ')+'\n';
+ if(b.done.length)s+='UROBIL SOM: '+b.done.join('; ')+'\n';
+ return gx(s);
+}
+function briefCard(opts={}){
+ const c=el('div','card brief');
+ const draw=()=>{
+  const b=briefData(),l=locLines();
+  const row=(k,v)=>`<div class="br"><span class="bk">${k}</span><span class="bv">${v}</span></div>`;
+  let loc;
+  if(!LOC)loc=`<button class="chip" data-loc>📍 Zistiť moju polohu</button>`;
+  else if(LOC.busy)loc='Zisťujem polohu…';
+  else if(l.err)loc=esc(l.err)+` <button class="chip" data-loc>Skúsiť znova</button>`;
+  else loc=`${l.addr?'<b>'+esc(l.addr)+'</b><br>':''}<span class="gps">${l.dec}</span><br><span class="small">${l.dms} · presnosť ±${l.acc} m${l.acc>100?' – nepresné, opíš aj okolie':''}</span><br><span class="small">Nadiktuj: „${l.say}“</span><br><button class="chip" data-copyloc>📄 Kopírovať súradnice</button> <a class="chip" target="_blank" href="https://maps.google.com/?q=${l.dec.replace(/ [NE]/g,'')}">🗺️ Mapa</a>`;
+  c.innerHTML=`<h2>📞 Čo povedať do telefónu</h2>
+   ${row('📍 Kde',loc)}
+   ${row('👤 Kto',esc(gx(b.who)))}
+   ${row('⚠️ Čo sa deje',esc(gx(b.fx.slice(0,6).join(' · ')||b.st.join(', ')||'–')))}
+   ${b.onset?row('🕐 Začiatok',esc(b.onset)):''}
+   ${b.st.length?row('🫀 Stav',esc(gx(b.st.join(', ')))):''}
+   ${b.vit.length?row('📏 Namerané',esc(b.vit.join(', '))):''}
+   ${b.done.length?row('🩹 Urobil som',esc(gx(b.done.join('; ')))):''}
+   <p class="small">Daj hovor na reproduktor, odpovedaj na otázky dispečera a nezaväzuj prvý. Zo smartfónu sa poloha pri volaní na 155/112 zvyčajne odošle aj automaticky (AML) – súradnice sú záloha. V horách: Horská záchranná služba 18 300.</p>`;
+  const lb=c.querySelector('[data-loc]');if(lb)lb.onclick=()=>getLoc(draw);
+  const cb=c.querySelector('[data-copyloc]');if(cb)cb.onclick=()=>copyText(l.dec+(l.addr?' ('+l.addr+')':''));
+ };
+ draw();
+ if(!LOC&&navigator.permissions)navigator.permissions.query({name:'geolocation'}).then(p=>{if(p.state==='granted'&&!LOC)getLoc(draw)}).catch(()=>{});
+ if(opts.autoLoc&&!LOC)getLoc(draw);
+ return c;
+}
+function showBrief(){
+ stopScreen();const ret=S.node;app.innerHTML='';CUR=[];window.scrollTo(0,0);
+ const w=el('div');w.append(el('div','step','<span class="big">📞</span><span>Hovor so záchrankou</span>'));
+ w.append(el('h1','','Toto povedz dispečerovi'));
+ w.append(briefCard({autoLoc:true}));
+ const box=el('div','opts');box.append(callBtn('155'));
+ [{l:'Prečítať nahlas',ico:'🔊',run:()=>{const o=ttsOn;ttsOn=true;speak(briefText().replace(/\n/g,'. '));ttsOn=o},kw:['precitat','citaj']},
+  {l:'Kopírovať text',ico:'📄',run:()=>copyText(briefText()),kw:['kopirovat']},
+  {l:'Späť k otázkam',ico:'←',cls:'ghost',run:()=>show(ret),kw:['spat','naspat']}]
+  .forEach((o,i)=>{box.append(optBtn(o,i,o.run));reg(o,i,o.run)});
+ w.append(box);app.append(w);
+}
+function alertBanner(){
+ const ks=S.alerts.filter(k=>KB.ALERTS[k]&&!BLOCK.has(k));if(!ks.length)return null;
+ const k=ks[ks.length-1],a=KB.ALERTS[k],num=a.call||'155';
+ const b=el('div','banner');
+ b.innerHTML=`<div class="bt"><span>${a.ico||'⚠️'}</span><b>${esc(gx(a.t))}</b>${ks.length>1?`<span class="small" style="color:#fff">+${ks.length-1}</span>`:''}</div>
+  <div class="bb">${num!=='none'?`<a class="bbtn call" href="tel:${num}">📞 ${esc(a.callLabel||num)}</a>`:''}<button class="bbtn" data-brief>Čo povedať</button><button class="bbtn" data-what>Čo robiť ▾</button></div>
+  <div class="bq" hidden>${ks.map(x=>{const y=KB.ALERTS[x];return `<p><b>${y.ico||''} ${esc(gx(y.t))}:</b> ${esc(gx(y.q||''))}</p>`}).join('')}<p class="small" style="color:#fff">Ak to vyzerá vážne, volaj hneď. Otázky môžeš dokončiť aj počas čakania na záchranku – spresnia informácie pre lekára.</p></div>`;
+ const ca=b.querySelector('.call');if(ca)ca.onclick=()=>logCall(num);
+ b.querySelector('[data-brief]').onclick=showBrief;
+ b.querySelector('[data-what]').onclick=e=>{const q=b.querySelector('.bq');q.hidden=!q.hidden;e.target.textContent=q.hidden?'Čo robiť ▾':'Skryť ▴'};
+ return b;
 }
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast('Skopírované')}
  catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();
@@ -206,6 +310,7 @@ function show(id){
  app.innerHTML='';CUR=[];CURQ=null;window.scrollTo(0,0);
  ({start:renderStart,cpr:renderCPR,dx:renderDX,dxr:renderResult}[n.type]||renderQ)(n);
  if(S.node!==id)return; // počas renderu sa presmerovalo (napr. na upozornenie)
+ if(n.type==='dx'){const bn=alertBanner();if(bn)app.prepend(bn);if(S.newAlert&&CURQ){const y=KB.ALERTS[S.newAlert];CURQ.say='Pozor: '+gx(y.t)+'. '+(y.call==='none'?'':'Zváž volanie '+(y.callLabel||y.call||'155')+'. ')+CURQ.say}S.newAlert=null}
  if(n.type!=='start')speakNode();else if(listening)startRec();
 }
 function optBtn(o,i,onClick){const b=el('button','opt '+(o.cls||''),`<span class="ico">${o.ico||''}</span><span>${esc(gx(o.l))}</span>${i>=0?`<span class="num">${i+1}</span>`:''}`);b.onclick=onClick;return b}
@@ -242,7 +347,7 @@ function hypLine(){
 }
 function renderDX(){
  const D=S.dx,A=D.A;
- for(const r of safety(A))if(r.alert&&!S.alerts.includes(r.alert)){S.alerts.push(r.alert);S.after='DX';show('AL_'+r.alert);return}
+ for(const r of safety(A))if(r.alert&&!S.alerts.includes(r.alert)){S.alerts.push(r.alert);if(BLOCK.has(r.alert)){S.after='DX';show('AL_'+r.alert);return}S.newAlert=r.alert;try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
  if(A.age===undefined)return renderVar('age');
  if(A.sex===undefined)return renderVar('sex');
  if(!S.onset){S.onset=true;show('ONSET');return}
@@ -338,6 +443,7 @@ function renderResult(){
  const w=el('div');
  const c=el('div','result '+lv,`<div class="step" style="color:inherit;opacity:.85"><span class="big">${L.ico}</span><span>Výsledok</span></div><h1>${L.label}</h1>`);
  c.append(el('ul','list',L.advice.map(x=>`<li>${esc(gx(x))}</li>`).join('')));w.append(c);
+ if(lv==='red'||lv==='orange'){const cb=el('div','opts');cb.append(callBtn('155'));w.append(cb);w.append(briefCard())}
  const why=sf.filter(r=>r.u==='red'||r.u==='orange');
  if(why.length)w.append(el('div','card',`<h2>Prečo</h2><ul class="list">${why.map(r=>`<li>${r.u==='red'?'🔴':'🟠'} ${esc(gx(r.why))}</li>`).join('')}</ul>`));
  if(S.dx.mainDone){
@@ -357,7 +463,6 @@ function renderResult(){
    w.append(el('div','card',`<h2>🩹 Čo robiť pri: ${esc(top.c.name.toLowerCase())}</h2><ul class="list">${top.c.aid.map(x=>`<li>${esc(gx(x))}</li>`).join('')}</ul><p class="small">Zdroj: ${(top.c.src||[]).map(k=>KB.REFS[k]?esc(KB.REFS[k].t.split(' – ')[0]):'').filter(Boolean).join('; ')||'–'}</p>`));
  }
  const box=el('div','opts');
- if(lv==='red'||lv==='orange')box.append(callBtn('155'));
  if(lv==='orange'||lv==='yellow')w.append(docBox());
  const more=S.dx.mainDone&&(()=>{const D=S.dx;D.extra+=8;const x=pickNext();D.extra-=8;return!!x})();
  const acts=[
@@ -433,6 +538,7 @@ function showSummary(){
  const w=el('div');
  w.append(el('div','step','<span class="big">📋</span><span>Súhrn</span>'));
  w.append(el('h1','','Súhrn pre záchranku / lekára'));
+ w.append(briefCard());w.append(el('h2','','Celý súhrn'));
  const pre=el('pre','sum');
  pre.textContent=summaryText();w.append(pre);
  const box=el('div','opts');

@@ -49,9 +49,9 @@ function pickNext(){
  for(const v in V){if(v==='age'||v==='sex'||!eligible(v,true))continue;const sc=igVar(Pf,v)+prioOf(V[v],A);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
  if(!best)return null;
  let lvNow='green';safety(A).forEach(r=>lvNow=lvMax(lvNow,r.u));
- const top=Math.max(...P),maxQ=((lvNow==='red'&&Math.max(...P)>.4)?10:16)+D.extra; // pri 155 len to najdôležitejšie pre záchranárov
+ const top=Math.max(...P),maxQ=22+D.extra; // pýtame sa až do vyčerpania užitočných otázok (appka je pre nejasné prípady)
  if(best.sc<2){ // prio>=2 = vynútená otázka
-  const stop=D.n>=maxQ||(D.n>=4&&top>.8)||(D.n>=3&&best.sc<.03);
+  const stop=D.n>=maxQ||(D.n>=8&&top>.92)||(D.n>=3&&best.sc<.02);
   if(stop)return rf||recheck(P); // pred ukončením: zostávajúce varovné otázky, potom kontrola prehliadnutých
  }
  return best;
