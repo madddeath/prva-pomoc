@@ -99,6 +99,14 @@ ONSET:{step:'Začiatok ťažkostí',ico:'🕐',t:'Kedy bol naposledy úplne v po
 DX:{type:'dx'},
 DXR:{type:'dxr'}
 };
+N.NEHODA={type:'alert',step:'Dopravná nehoda',ico:'🚗',t:'Najprv bezpečnosť – tvoja aj ostatných',call:'112',
+ q:'Zastav bezpečne, zapni výstražné svetlá, obleč reflexnú vestu a postav výstražný trojuholník dostatočne ďaleko za nehodu. Ak sa dá, vypni motor havarovaného auta. Nefajči.',
+ hint:'Volaj 112 – pošlú záchranku, hasičov aj políciu naraz. Povedz, koľko je zranených a či je niekto zakliesnený v aute.',
+ opts:[{l:'Posúdiť zraneného',ico:'➜',cls:'primary',go:'S1',f:'Dopravná nehoda',set:S=>{S.scen='Dopravná nehoda';S.dx.A.mvc=true},kw:['posudit','zraneneho','dalej']},
+  {l:'Zranených je viac – koho prvého?',ico:'👥',go:'NEHODA2',kw:['viac','koho']}]};
+N.NEHODA2={type:'alert',step:'Viac zranených',ico:'👥',t:'Najprv tí, ktorí sú ticho',call:'112',
+ q:'1) Kto nereaguje alebo nedýcha normálne – ten má prednosť (uvoľni dýchacie cesty, prípadne resuscitácia). 2) Kto silno krváca – stlač ranu. 3) Kto kričí a hýbe sa, dýcha – príde na rad neskôr. Každého posúď zvlášť; po výsledku daj „Posúdiť ďalšieho zraneného“.',
+ opts:[{l:'Posúdiť prvého zraneného',ico:'➜',cls:'primary',go:'S1',f:'Dopravná nehoda, viac zranených',set:S=>{S.scen='Dopravná nehoda';S.dx.A.mvc=true},kw:['posudit','prveho','dalej']}]};
 Object.entries(KB.ALERTS).forEach(([k,a])=>{
  const num=a.call||'155';
  const opts=[{l:a.cont||(num==='none'?'Pokračovať':('Volám / volal som '+(num==='0254774166'?'':num+' ')+'– pokračovať').replace('  ',' ')),ico:'➜',cls:'primary',go:S=>S.after||'DX',
@@ -380,7 +388,7 @@ function renderBool(f){
  const w=qWrap(X.ico,`Otázka ${S.dx.n+1}`+(S.dx.mode==='obs'?' · pozoruj':''),ask,X.hint);
  const box=el('div','opts');
  [{l:X.yes||'Áno',ico:'✅',v:true,kw:['ano','hej','jo','ma','mal','je','preslo']},{l:X.no||'Nie',ico:'❌',v:false,kw:['nie','nema','nemal','neni']},{l:'Neviem',ico:'❓',v:'?',kw:['neviem','nevie','netusim']}]
-  .forEach((o,i)=>{const act=()=>{if(o.v==='?'){pushHist();S.dx.asked.push(f);S.dx.n++;if(S.dx.soft&&S.dx.soft[f]){delete S.dx.soft[f];delete S.dx.A[f]}addLog('f',X.t+': nevie');show('DX')}else answer(f,o.v,X.t+': '+(o.v?'áno':'nie'))};
+  .forEach((o,i)=>{const act=()=>{if(o.v==='?'){pushHist();S.dx.asked.push(f);S.dx.n++;if(S.dx.soft&&S.dx.soft[f]){delete S.dx.soft[f];delete S.dx.A[f]}addLog('f',X.t+': nevie');show('DX')}else{const v=X.inv?!o.v:o.v;answer(f,v,X.t+': '+(v?'áno':'nie'))}};
    box.append(optBtn(o,i,act));reg(o,i,act)});
  finishBtn(box);w.append(box);app.append(w);
  if(listening)CURQ.say+='. Áno, nie, alebo neviem?';
@@ -407,7 +415,7 @@ function renderVar(v){
  box.append(optBtn(sk,X.vals.length,act));reg(sk,X.vals.length,act);
  finishBtn(box);w.append(box);app.append(w);
 }
-const dispOk=(f,A)=>{const X=F[f];if(S.dx.mode==='obs'&&!X.obs)return false;if(A[f]===true)return true;try{return X.disp?X.disp(A):(!X.req||X.req(A))}catch(e){return true}};
+const dispOk=(f,A)=>{const X=F[f];if(S.dx.mode==='obs'&&!X.obs)return false;if(A[f]===true)return true;if(X.na&&X.na.includes(A.age))return false;try{return X.disp?X.disp(A):(!X.req||X.req(A))}catch(e){return true}};
 function renderCats(){
  CURQ={say:'Čo sa deje? Ťukni na oblasť, rozbalia sa príznaky. Označ všetko, čo platí, a potom povedz hotovo.'};
  const D=S.dx,A=D.A;
@@ -429,7 +437,7 @@ function renderCats(){
   vis.forEach(f=>{const X=F[f];const b=optBtn({l:X.t,ico:X.ico},-1,()=>togF(f));b.classList.add('small-opt');if(sel.has(f))b.classList.add('sel');(btns[f]=btns[f]||[]).push(b);body.append(b);
    reg({l:X.t,kw:[X.t.split(' ')[0]]},-1,()=>{if(!open.has(c.id))return;togF(f);toast((sel.has(f)?'Označené: ':'Odznačené: ')+X.t)})});
   body.hidden=!open.has(c.id);
-  const tog=()=>{open.has(c.id)?open.delete(c.id):open.add(c.id);body.hidden=!open.has(c.id);updHead(c);if(!body.hidden)setTimeout(()=>h.scrollIntoView({behavior:'smooth',block:'start'}),30)};
+  const tog=()=>{open.has(c.id)?open.delete(c.id):open.add(c.id);body.hidden=!open.has(c.id);updHead(c);if(!body.hidden)setTimeout(()=>{const hb=(document.querySelector('header')||{offsetHeight:0}).offsetHeight+(document.querySelector('.toolbar,#toolbar,nav')||{offsetHeight:0}).offsetHeight;const r=body.getBoundingClientRect(),vh=window.innerHeight;if(r.bottom>vh){const want=Math.min(r.bottom-vh+16,h.getBoundingClientRect().top-hb-8);if(want>0)window.scrollBy({top:want,behavior:'smooth'})}},30)};
   reg({l:c.t,kw:c.t.split(/[ ,]+/).filter(x=>x.length>=4)},-1,()=>{tog();toast((open.has(c.id)?'Otvorené: ':'Zatvorené: ')+c.t)});
   list.append(h,body);updHead(c)});
  w.append(list);
@@ -510,6 +518,7 @@ function renderResult(){
   {l:'Súhrn pre záchranku / lekára',ico:'📋',cls:'primary',run:showSummary,kw:['suhrn']},
   ...(more?[{l:'Ďalšie otázky (spresniť)',ico:'➕',run:()=>{pushHist();S.dx.extra+=8;show('DX')},kw:['dalsie','spresnit']}]:[]),
   ...(lv==='red'?[{l:'Prestal dýchať → resuscitácia',ico:'🫀',run:()=>choose(N.DXR,{flag:'cardiac',f:'Prestal dýchať',go:'CPR'}),kw:['prestal','nedycha']}]:[]),
+  ...(S.dx.A.mvc===true?[{l:'Posúdiť ďalšieho zraneného',ico:'👥',run:()=>{if('speechSynthesis' in window)speechSynthesis.cancel();S=fresh();S.scen='Dopravná nehoda';S.dx.A.mvc=true;addLog('f','Dopravná nehoda – ďalší zranený');show('S1')},kw:['dalsieho','zraneneho']}]:[]),
   {l:'Nové posúdenie',ico:'⟲',cls:'ghost',run:restart,kw:['nove','znova']}];
  acts.forEach((o,i)=>{box.append(optBtn(o,i,o.run));reg(o,i,o.run)});
  w.append(box);app.append(w);
@@ -522,6 +531,7 @@ function renderStart(){
  const box=el('div','opts');
  const act=()=>{speak('');choose(N.START,{go:'S1'})};
  box.append(optBtn({l:'Začať',ico:'▶',cls:'primary'},0,act));reg({l:'zacat',kw:['zacat','start','zacni']},0,act);
+ const nh=()=>{speak('');choose(N.START,{go:'NEHODA'})};box.append(optBtn({l:'Dopravná nehoda',ico:'🚗'},1,nh));reg({l:'nehoda',kw:['nehoda','havaria','auto']},1,nh);
  box.append(callBtn('155'));w.append(box);
  w.append(el('div','card',`<h2>Ako to funguje</h2><ul class="list small">
   <li>Najprv overí to najdôležitejšie: vedomie, dýchanie, bezprostredné ohrozenie.</li>

@@ -40,7 +40,7 @@ function igVar(P,v){let e=0,tot=0;const parts=V[v].vals.map(([val])=>{const w=C.
 /* relevancia pre naliehavé stavy – aby sa nezabudlo na otázky, ktoré rozhodujú o 155 */
 function urgRel(P,A,f){let r=0;C.forEach((c,i)=>{if(urgOf(c,A)==='red')r+=P[i]*Math.abs(pf(c,f)-F[f].q)});return r}
 function eligible(id,isVar){const D=S.dx,A=D.A;if(D.asked.includes(id))return false;if(A[id]!==undefined&&!(D.soft&&D.soft[id]))return false;
- const X=isVar?V[id]:F[id];if(D.mode==='obs'&&!X.obs)return false;if(X.req&&!X.req(A))return false;return true}
+ const X=isVar?V[id]:F[id];if(D.mode==='obs'&&!X.obs)return false;if(X.na&&X.na.includes(A.age))return false;if(X.req&&!X.req(A))return false;return true}
 const prioOf=(X,A)=>typeof X.prio==='function'?X.prio(A):(X.prio||0);
 var OFFW=.35;
 function pickNext(){

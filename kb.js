@@ -12,7 +12,7 @@
    SAFETY= bezpečnostné pravidlá nezávislé od diagnózy (minimálna naliehavosť + okamžitý pokyn).
    ===================================================================== */
 const KB = {
-version: '0.10',
+version: '0.11',
 
 /* ---------- ZDROJE ---------- */
 REFS: {
@@ -128,9 +128,14 @@ FIND: {
  /* úrazy */
  fall:{q:.12,t:'Pád',obs:1,ico:'🧎',ask:'Spadol?'},
  head_injury:{q:.1,t:'Úder do hlavy',obs:1,ico:'🤕',ask:'Udrel sa do hlavy?'},
- anticoag:{rf:1,q:.1,t:'Lieky na riedenie krvi',obs:1,ico:'💊',ask:'Berie lieky na riedenie krvi? (napr. Warfarin, Xarelto, Eliquis, Pradaxa)',req:A=>A.head_injury===true||A.fall===true||A.blood_gi===true||A.age==='senior'},
- neck_injury:{rf:1,q:.08,t:'Bolesť krku/chrbta po úraze alebo tŕpnutie končatín',obs:0,ico:'🦴',ask:'Po úraze: bolí ho krk alebo chrbát, prípadne mu tŕpnu či slabnú ruky alebo nohy?',req:A=>A.fall===true||A.head_injury===true},
- hip_injury:{rf:1,q:.1,t:'Po páde sa nevie postaviť, bolí bedro, noha vytočená',obs:1,ico:'🦵',ask:'Nevie sa po páde postaviť a bolí ho bedro alebo slabina?',hint:'Typické je, že noha je vytočená von alebo vyzerá kratšia.',req:A=>A.fall===true},
+ anticoag:{rf:1,q:.1,t:'Lieky na riedenie krvi',obs:1,ico:'💊',ask:'Berie lieky na riedenie krvi?',hint:'Najčastejšie: Warfarin, Xarelto, Eliquis, Pradaxa, Lixiana alebo injekcie do brucha (Clexane, Fraxiparine). Pozri krabičky liekov.',req:A=>A.head_injury===true||A.fall===true||A.blood_gi===true||A.age==='senior'},
+ neck_injury:{rf:1,q:.08,t:'Bolesť krku/chrbta po úraze alebo tŕpnutie končatín',obs:0,ico:'🦴',ask:'Po úraze: bolí ho krk alebo chrbát, prípadne mu tŕpnu či slabnú ruky alebo nohy?',req:A=>A.mvc===true||A.fall===true||A.head_injury===true},
+ fontanelle:{q:.03,t:'Vypuklá, napätá fontanela',obs:1,ico:'👶',ask:'Je mäkké miesto na hlavičke (fontanela) vypuklé a napäté, keď dojča pokojne sedí?',req:A=>A.age==='infant'&&(A.fever===true||A.temp==='hot'||A.temp==='vhot'||A.drowsy===true||A.vomiting===true||A.seizure===true||A.poor_feeding===true)},
+ infant_breath:{q:.1,t:'Dojča stoná pri výdychu / rozširuje nosné dierky',obs:1,ico:'😮‍💨',ask:'Stoná dojča pri každom výdychu alebo sa mu pri dýchaní rozširujú nosné dierky?',req:A=>A.age==='infant'},
+ infant_floppy:{q:.05,t:'Dojča je ochabnuté, nereaguje ako zvyčajne',obs:1,ico:'🧸',ask:'Je dojča ochabnuté, nezvyčajne pokojné alebo sa ťažko prebúdza – nereaguje na teba ako zvyčajne?',req:A=>A.age==='infant'},
+ mvc:{q:.01,t:'Dopravná nehoda / náraz vo vysokej rýchlosti',obs:1,ico:'🚗',ask:'Bol účastníkom dopravnej nehody (auto, motorka, bicykel, zrazený chodec)?'},
+ hip_injury:{rf:1,q:.1,t:'Po páde ho bolí bedro alebo slabina',obs:1,ico:'🦵',ask:'Bolí ho po páde bedro alebo slabina?',hint:'Typické pri zlomenine krčka: noha je vytočená von alebo vyzerá kratšia.',req:A=>A.fall===true},
+ cant_stand:{rf:1,q:.1,t:'Po páde sa nevie postaviť',obs:1,ico:'🧍',inv:1,ask:'Vie sa po páde postaviť a urobiť pár krokov?',yes:'Áno, postaví sa a prejde',no:'Nie, nevie sa postaviť',req:A=>A.fall===true||A.hip_injury===true||A.limb_problem===true||A.long_lie===true},
  limb_deform:{q:.08,t:'Zdeformovaná / opuchnutá končatina, nemôže ňou hýbať',obs:1,ico:'🦴',ask:'Je ruka alebo noha zdeformovaná, silno opuchnutá, alebo s ňou nemôže hýbať?',req:A=>A.fall===true},
  bleeding_heavy:{q:.03,t:'Silné krvácanie',obs:1,ico:'🩸',ask:'Silno krváca (krv strieka alebo rýchlo presakuje)?'},
  burn:{q:.03,t:'Popálenina',obs:1,ico:'🔥',ask:'Má popáleninu alebo obareninu?'},
@@ -197,8 +202,8 @@ FIND: {
  hernia_lump:{disp:A=>true,rf:1,q:.03,t:'Tvrdá bolestivá bulka v slabine / pri pupku, nedá sa vtlačiť',obs:0,ico:'🔴',ask:'Má v slabine alebo pri pupku tvrdú, bolestivú bulku, ktorá sa nedá vtlačiť späť?',req:A=>A.abd_pain===true||A.vomiting===true},
  food_stuck:{disp:A=>true,q:.03,t:'Zaseknuté sústo – nevie prehltnúť ani sliny',obs:1,ico:'🍖',ask:'Zaseklo sa mu sústo – cíti ho za hrudnou kosťou a nevie prehltnúť ani sliny (ale dýcha)?',req:A=>A.drooling===true||A.chest_pain===true||A.vomiting===true},
  foreign_body:{q:.04,t:'Cudzie teleso v nose alebo uchu',obs:1,ico:'🫘',ask:'Strčilo si niečo do nosa alebo ucha?',req:A=>A.age==='child'||A.age==='infant',prio:.05},
- chest_trauma:{q:.05,t:'Úder do hrudníka / stlačenie hrudníka',obs:1,ico:'💥',ask:'Udrel sa do hrudníka alebo ho niečo stlačilo (nehoda, pád)?',req:A=>A.fall===true||((A.dyspnea===true||A.chest_pain===true)&&A.age!=='senior')},
- abd_trauma:{q:.05,t:'Úder do brucha alebo boku',obs:1,ico:'💥',ask:'Mal úder do brucha alebo boku (nehoda, pád na riadidlá či hranu)?',req:A=>A.fall===true||A.abd_pain===true},
+ chest_trauma:{q:.05,t:'Úder do hrudníka / stlačenie hrudníka',obs:1,ico:'💥',ask:'Udrel sa do hrudníka alebo ho niečo stlačilo (nehoda, pád)?',req:A=>A.mvc===true||A.fall===true||((A.dyspnea===true||A.chest_pain===true)&&A.age!=='senior')},
+ abd_trauma:{q:.05,t:'Úder do brucha alebo boku',obs:1,ico:'💥',ask:'Mal úder do brucha alebo boku (nehoda, pád na riadidlá či hranu)?',req:A=>A.mvc===true||A.fall===true||A.abd_pain===true},
  wound:{q:.06,t:'Rana (porezanie, tržná rana)',obs:1,ico:'🩹',ask:'Má ranu – porezanie alebo tržnú ranu?'},
  wound_deep:{rf:1,q:.3,t:'Hlboká / zívajúca / znečistená rana alebo na tvári',obs:1,ico:'✂️',ask:'Platí niečo z toho: rana je hlboká, zíva, je dlhšia ako 2 cm, je na tvári alebo je v nej nečistota?',req:A=>A.wound===true,prio:.4},
  amputation:{rf:1,q:.02,t:'Odtrhnutá / odrezaná časť tela',obs:1,ico:'✋',ask:'Bola odtrhnutá alebo odrezaná časť tela (napr. prst)?',req:A=>A.wound===true||A.bleeding_heavy===true},
@@ -286,7 +291,7 @@ CATS: [
  {id:'abd',t:'Brucho, zvracanie, hnačka',ico:'🫃',items:['abd_pain','nausea','vomiting','diarrhea','blood_gi','rectal_bleed','constipation','jaundice','hernia_lump']},
  {id:'uro',t:'Močenie, pohlavné orgány, tehotenstvo',ico:'🚻',items:['urinary','hematuria','urine_retention','vaginal_bleeding','pregnant','testis_pain','priapism','postpartum']},
  {id:'fever',t:'Horúčka, infekcia, slabosť',ico:'🌡️',items:['fever','weakness','flu_like','sore_throat','low_drink','jaundice','immuno','recent_surgery']},
- {id:'trauma',t:'Úraz, pád, rana, krvácanie',ico:'🩹',items:['fall','head_injury','wound','bleeding_heavy','limb_problem','chest_trauma','abd_trauma','burn','needle_stick','long_lie']},
+ {id:'trauma',t:'Úraz, pád, rana, krvácanie',ico:'🩹',items:['mvc','fall','head_injury','wound','bleeding_heavy','limb_problem','chest_trauma','abd_trauma','burn','needle_stick','long_lie']},
  {id:'limb',t:'Chrbát, kĺby, ruky a nohy',ico:'🦵',items:['back_pain','limb_problem','joint_hot','leg_swelling','limb_cold']},
  {id:'skin',t:'Koža, alergia, uštipnutie',ico:'🐝',items:['skin','hives','swelling_face','sting','tick','animal_bite','snake_bite','skin_chemical','frostbite','pox','em_rash']},
  {id:'ent',t:'Oko, ucho, nos, hrdlo, zuby',ico:'👁️',items:['eye_problem','ear_pain','hearing_loss','nosebleed','sore_throat','foreign_body','tooth','dental_swelling','sinus']},
@@ -344,7 +349,7 @@ COND: [
   vars:{bp:[.02,.3,.38,.3],age:[.01,.3,.45,.24]},
   aid:['Volaj 155.','Nech leží s mierne zdvihnutou hlavou, v tichu a šere.','Nedávaj mu lieky.']},
  {id:'mening',TEMPW:[.01,.15,.75,.09],name:'Zápal mozgových blán (meningitída)',prior:.006,urg:'red',src:['VDBEEK','BMJMEN'],
-  ev:{skin:.3,headache:.8,neck_stiff:.65,fever:.8,confusion:.55,rash_petechiae:.26,photophobia:.5,vomiting:.5,nausea:.45,drowsy:.45,seizure:.1,speech:.15,weakness:.5,headache_sudden:.15,migraine_known:.05},
+  ev:{fontanelle:.5,infant_floppy:.55,skin:.3,headache:.8,neck_stiff:.65,fever:.8,confusion:.55,rash_petechiae:.26,photophobia:.5,vomiting:.5,nausea:.45,drowsy:.45,seizure:.1,speech:.15,weakness:.5,headache_sudden:.15,migraine_known:.05},
   vars:{age:[.3,.3,.2,.2]},
   eva:{child:{headache:.35,neck_stiff:.3,seizure:.3,vomiting:.6,nausea:.2,confusion:.4,drowsy:.6,fever:.9,weakness:.4,photophobia:.2}},
   aid:['Volaj 155.','Nech leží v tichu a šere.','Ak je ospalý alebo zvracia → poloha na boku.']},
@@ -376,7 +381,7 @@ COND: [
   vars:{bp:[.4,.45,.12,.03],pulse:[.02,.35,.4,.23],age:[.2,.4,.25,.15]},
   aid:['Volaj 155.','Ak má adrenalínové pero (EpiPen), pomôž mu ho použiť do vonkajšej strany stehna.','Pri ťažkom dýchaní nech sedí; ak je slabý alebo omdlieva, polož ho a zdvihni nohy.','Ak sa do 5 minút nezlepší a má druhé pero, použi ho.']},
  {id:'pneumonia',TEMPW:[.01,.25,.7,.04],name:'Zápal pľúc',prior:.04,urg:A=>(A.confusion||A.drowsy||A.dyspnea)?'red':'orange',src:['EST'],
-  ev:{fever:.8,cough:.85,dyspnea:.45,chest_pain:.3,chest_pleuritic:.55,weakness:.7,confusion:.25,hemoptysis:.05,sweat:.3,palpitations:.2,nausea:.2,low_drink:.3,wheeze:.15},
+  ev:{infant_breath:.6,fever:.8,cough:.85,dyspnea:.45,chest_pain:.3,chest_pleuritic:.55,weakness:.7,confusion:.25,hemoptysis:.05,sweat:.3,palpitations:.2,nausea:.2,low_drink:.3,wheeze:.15},
   vars:{age:[.2,.2,.2,.4]},
   aid:['Pri ťažkom dýchaní, zmätenosti alebo spavosti volaj 155.','Inak ešte dnes lekár.','Podávaj tekutiny, nech odpočíva v polosede.']},
  {id:'panic',PAINW:[.35,.5,.15],name:'Panický záchvat / hyperventilácia',prior:.05,urg:'yellow',src:['EST'],
@@ -424,7 +429,7 @@ COND: [
  /* ===== INFEKCIE ===== */
  {id:'sepsis',TEMPW:[.08,.22,.6,.1],name:'Vážna infekcia s celkovou reakciou (sepsa)',prior:.04,
   urg:A=>((A.confusion||A.drowsy)&&A.fever)||A.dyspnea||A.drowsy?'red':'orange',src:['EST'],
-  ev:{fever:.8,confusion:.5,confusion_sudden:.45,weakness:.8,low_drink:.5,urinary:.3,cough:.4,dyspnea:.35,sweat:.35,drowsy:.3,palpitations:.3,vomiting:.25,diarrhea:.2,seizure:.03,chest_pain:.1,chest_pleuritic:.4,rash_petechiae:.05,abd_pain:.15},
+  ev:{infant_floppy:.6,infant_breath:.35,fever:.8,confusion:.5,confusion_sudden:.45,weakness:.8,low_drink:.5,urinary:.3,cough:.4,dyspnea:.35,sweat:.35,drowsy:.3,palpitations:.3,vomiting:.25,diarrhea:.2,seizure:.03,chest_pain:.1,chest_pleuritic:.4,rash_petechiae:.05,abd_pain:.15},
   vars:{bp:[.25,.5,.2,.05],pulse:[.02,.35,.4,.23],age:[.15,.15,.2,.5]},
   aid:['Pri zmätenosti, spavosti alebo ťažkom dýchaní s horúčkou volaj 155.','Inak kontaktuj ešte dnes lekára.','Podávaj tekutiny po dúškoch.']},
  {id:'uti',name:'Močová infekcia',prior:.04,urg:A=>(A.fever||A.confusion)?'orange':'yellow',src:['EST'],
@@ -465,23 +470,23 @@ COND: [
  /* ===== ÚRAZY ===== */
  {id:'head',name:'Úraz hlavy (otras alebo krvácanie do mozgu)',prior:.05,
   urg:A=>(A.confusion||A.vomiting||A.drowsy||A.anticoag||A.seizure)?'red':'orange',src:['ERC25'],
-  ev:{tooth:.1,fall_days_ago:.15,head_injury:.97,fall:.7,confusion:.45,vomiting:.35,nausea:.4,drowsy:.35,anticoag:.3,headache:.6,headache_sudden:.1,seizure:.06,speech:.2,face_droop:.08,arm_weak:.1,alcohol:.2,confusion_sudden:.8,fainted:.2,vertigo:.2,neck_injury:.15},
+  ev:{mvc:.35,tooth:.1,fall_days_ago:.15,head_injury:.97,fall:.7,confusion:.45,vomiting:.35,nausea:.4,drowsy:.35,anticoag:.3,headache:.6,headache_sudden:.1,seizure:.06,speech:.2,face_droop:.08,arm_weak:.1,alcohol:.2,confusion_sudden:.8,fainted:.2,vertigo:.2,neck_injury:.15},
   vars:{age:[.15,.3,.2,.35]},
   aid:['Nech zostane v pokoji, nehýb s ním, ak sa sťažuje na krk.','Pri zmätenosti, zvracaní, ospalosti alebo liekoch na riedenie krvi volaj 155.','Najbližších 24 hodín ho nenechávaj samého.']},
  {id:'spine',name:'Poranenie chrbtice',prior:.01,urg:'red',src:['ERC25'],
-  ev:{neck_injury:.92,fall:.8,head_injury:.5,back_pain:.6,arm_weak:.2,limb_deform:.1,alcohol:.15},
+  ev:{mvc:0.45,neck_injury:.92,fall:.8,head_injury:.5,back_pain:.6,arm_weak:.2,limb_deform:.1,alcohol:.15},
   vars:{age:[.05,.4,.25,.3]},
   aid:['Volaj 155.','Nehýb s ním – nech zostane v polohe, v ktorej je, a drž mu hlavu v osi.','Hýb ním len ak hrozí nebezpečenstvo alebo nedýcha.']},
  {id:'hip',PAINW:[.05,.3,.65],name:'Zlomenina krčka stehennej kosti (bedra)',prior:.02,urg:'red',src:['EST'],
-  ev:{limb_problem:.6,can_walk4:.03,hip_injury:.92,fall:.97,anticoag:.25,head_injury:.15,limb_deform:.5,confusion:.15,weakness:.3},
+  ev:{cant_stand:.9,limb_problem:.6,can_walk4:.03,hip_injury:.92,fall:.97,anticoag:.25,head_injury:.15,limb_deform:.5,confusion:.15,weakness:.3},
   vars:{age:[.001,.02,.12,.86]},
   aid:['Volaj 155 – na prevoz treba záchranku.','Nehýb s ním, podlož mu hlavu, prikry ho.','Nedávaj jesť ani piť (môže ísť na operáciu).']},
  {id:'fracture',PAINW:[.1,.4,.5],name:'Zlomenina / vykĺbenie končatiny',prior:.03,urg:'orange',src:['ERC25'],
-  ev:{wound:.1,limb_problem:.9,ankle_twist:.3,can_walk4:.15,limb_deform:.92,fall:.75,hip_injury:.05,head_injury:.1,sweat:.2},
+  ev:{mvc:.15,cant_stand:.4,wound:.1,limb_problem:.9,ankle_twist:.3,can_walk4:.15,limb_deform:.92,fall:.75,hip_injury:.05,head_injury:.1,sweat:.2},
   vars:{age:[.25,.35,.2,.2]},
   aid:['Znehybni končatinu v polohe, v akej je (šatka, dlaha, vankúš).','Chlaď zabaleným ľadom max. 20 minút.','Lekár ešte dnes (úrazová ambulancia); pri otvorenej zlomenine alebo studenej modrej končatine → 155.']},
  {id:'bleed',name:'Silné krvácanie',prior:.02,urg:'red',src:['ERC25'],
-  ev:{wound:.6,amputation:.1,impaled:.1,bleeding_heavy:.97,fall:.3,sweat:.35,fainted:.2,weakness:.4,anticoag:.2,confusion:.1},
+  ev:{mvc:.1,wound:.6,amputation:.1,impaled:.1,bleeding_heavy:.97,fall:.3,sweat:.35,fainted:.2,weakness:.4,anticoag:.2,confusion:.1},
   aid:['Tlač silno priamo na ranu a nepovoľuj.','Volaj 155.','Pri krvácaní z končatiny, ktoré tlak nezastaví, a ak vieš – škrtidlo nad ranou.']},
  {id:'burn',name:'Popálenina',prior:.02,urg:A=>A.burn_large?'red':'yellow',src:['ERC25'],
   ev:{skin:.6,burn:.98,burn_large:.35,electric:.05,dyspnea:.05},
@@ -492,7 +497,7 @@ COND: [
 
  /* ===== DETI ===== */
  {id:'infant_fever',TEMPW:[0,.05,.9,.05],name:'Horúčka u dojčaťa do 3 mesiacov',prior:.01,urg:'red',src:['NICE'],
-  ev:{fever:.99,young_infant:.95,poor_feeding:.4,infant_dry:.25,drowsy:.3,vomiting:.25,cough:.3,diarrhea:.15,rash_petechiae:.03},
+  ev:{infant_floppy:.25,fever:.99,young_infant:.95,poor_feeding:.4,infant_dry:.25,drowsy:.3,vomiting:.25,cough:.3,diarrhea:.15,rash_petechiae:.03},
   vars:{age:[.99,.01,0,0,0]},
   aid:['Dojča do 3 mesiacov s teplotou 38 °C a viac musí ešte dnes, čo najskôr, vyšetriť lekár – volaj 155 alebo choď na detskú pohotovosť.','Neprehrievaj ho, podávaj piť (dojčenie).']},
  {id:'croup',name:'Zápal hrtana u dieťaťa (pseudokrup)',prior:.02,urg:A=>(A.stridor&&(A.drooling||A.dyspnea||A.drowsy))?'red':'orange',src:['EST'],
@@ -566,7 +571,7 @@ COND: [
 
  /* ===== DÁVKA 3: bežné infekcie, deti, cievy, brucho, seniori ===== */
  {id:'bronchiolitis',TEMPW:[0,.4,.58,.02],name:'Zápal priedušiek u dojčaťa (bronchiolitída)',prior:.015,urg:A=>(A.fast_breath&&(A.young_infant||A.poor_feeding||A.drowsy))||A.dyspnea?'red':'orange',src:['NICE','EST'],
-  ev:{cough:.95,fast_breath:.7,poor_feeding:.6,fever:.5,wheeze:.5,dyspnea:.35,flu_like:.8,infant_dry:.2,young_infant:.35},
+  ev:{infant_breath:.8,cough:.95,fast_breath:.7,poor_feeding:.6,fever:.5,wheeze:.5,dyspnea:.35,flu_like:.8,infant_dry:.2,young_infant:.35},
   vars:{age:[.9,.1,0,0,0]},
   aid:['Podávaj častejšie menšie dávky pitia (dojčenie).','Odsávaj nos, dvíhaj hlavičku.','Pri rýchlom namáhavom dýchaní, prestávkach v dýchaní, modraní alebo ak nepije → 155.']},
  {id:'otitis',PAINW:[.2,.5,.3],name:'Zápal stredného ucha',prior:.02,urg:'yellow',src:['EST'],
@@ -594,7 +599,7 @@ COND: [
   vars:{age:[0,.01,.24,.38,.37]},
   aid:['Lekár ešte dnes.','Nech sa nenamáha a nohu nemasíruje.','Ak sa pridá dýchavica alebo bolesť na hrudi → 155.']},
  {id:'ptx',PAINW:[.1,.45,.45],name:'Kolaps pľúc (pneumotorax)',prior:.006,urg:'red',src:['EST'],
-  ev:{dyspnea:.85,chest_pain:.95,chest_pleuritic:.85,cough:.2,fall:.1,anxiety:.3,palpitations:.3},
+  ev:{mvc:0.15,dyspnea:.85,chest_pain:.95,chest_pleuritic:.85,cough:.2,fall:.1,anxiety:.3,palpitations:.3},
   vars:{sex:[.8,.2],age:[0,.02,.7,.18,.1]},
   aid:['Volaj 155.','Nech sedí v polohe, v ktorej sa mu dýcha najlepšie.']},
  {id:'pancreatitis',PAINW:[.05,.25,.7],name:'Zápal podžalúdkovej žľazy (pankreatitída)',prior:.01,urg:A=>(A.sweat||A.confusion||A.bp==='vlow')?'red':'orange',src:['EST'],
@@ -686,7 +691,7 @@ COND: [
   vars:{age:[.25,.35,.25,.1,.05]},
   aid:['Lekár do pár dní; u dojčaťa ešte dnes.','Ak dojča pri kašli prestáva dýchať alebo modrá → 155.']},
  {id:'encephalitis',TEMPW:[.01,.15,.74,.1],name:'Zápal mozgu (encefalitída)',prior:.003,urg:'red',src:['EST'],
-  ev:{fever:.9,confusion:.85,headache:.7,seizure:.35,drowsy:.5,psychosis:.25,speech:.2,neck_stiff:.25,tick:.05,vomiting:.3},
+  ev:{fontanelle:.3,infant_floppy:.5,fever:.9,confusion:.85,headache:.7,seizure:.35,drowsy:.5,psychosis:.25,speech:.2,neck_stiff:.25,tick:.05,vomiting:.3},
   aid:['Volaj 155.','Pri kŕčoch chráň hlavu, potom poloha na boku.']},
  {id:'arteritis',name:'Zápal tepny na spánku (obrovskobunková arteritída)',prior:.003,urg:A=>A.vision?'red':'orange',src:['EST'],
   ev:{temple_pain:.85,headache:.95,vision:.3,weakness:.5,fever:.3},
@@ -721,21 +726,21 @@ COND: [
   vars:{age:[.05,.9,.04,.005,.005]},
   aid:['Nepokúšaj sa ho vyberať pinzetou – môžeš ho zatlačiť hlbšie.','Pri nose: zatlač druhú nosnú dierku a nech silno vysmrká.','Inak lekár (ORL) ešte dnes; pri batérii v nose alebo uchu ihneď.']},
  {id:'chest_trauma',name:'Poranenie hrudníka (zlomené rebrá, pľúca)',prior:.01,urg:A=>(A.dyspnea||A.hemoptysis||A.sweat)?'red':'orange',src:['ERC25'],
-  ev:{chest_trauma:.95,chest_pain:.9,chest_pleuritic:.85,dyspnea:.35,fall:.6,hemoptysis:.05},
+  ev:{mvc:0.5,chest_trauma:.95,chest_pain:.9,chest_pleuritic:.85,dyspnea:.35,fall:.6,hemoptysis:.05},
   vars:{age:[.05,.1,.35,.25,.25]},
   aid:['Nech sedí v polohe, v ktorej sa mu najlepšie dýcha.','Pri ťažkom dýchaní, vykašliavaní krvi alebo otvorenej rane na hrudníku → 155 (otvorenú ranu nezalepuj úplne).','Inak lekár ešte dnes (RTG).']},
  {id:'abd_trauma',name:'Poranenie brucha (vnútorné krvácanie)',prior:.008,urg:A=>(A.sweat||A.bp==='vlow'||A.fainted||A.abd_rigid)?'red':'orange',src:['EST'],
-  ev:{abd_trauma:.95,abd_pain:.85,fall:.6,sweat:.3,abd_rigid:.2,vomiting:.2},
+  ev:{mvc:0.5,abd_trauma:.95,abd_pain:.85,fall:.6,sweat:.3,abd_rigid:.2,vomiting:.2},
   vars:{age:[.05,.35,.35,.15,.1]},
   aid:['Nech leží, nič neje ani nepije.','Pri bledosti, potení, slabosti alebo tvrdom bruchu → 155.','Inak lekár ešte dnes – vnútorné krvácanie sa môže prejaviť neskôr.']},
  {id:'amputation',name:'Amputácia (odtrhnutý prst / časť končatiny)',prior:.002,urg:'red',src:['ERC25'],
-  ev:{amputation:.97,bleeding_heavy:.7,wound:.95},
+  ev:{mvc:.1,amputation:.97,bleeding_heavy:.7,wound:.95},
   aid:['Zastav krvácanie silným tlakom na ranu.','Volaj 155.','Amputovanú časť zabaľ do čistého vlhkého obväzu, vlož do igelitového vrecka a to polož na ľad alebo do studenej vody (nie priamo na ľad).']},
  {id:'impaled',name:'Zapichnutý predmet v rane',prior:.003,urg:'red',src:['ERC25'],
-  ev:{impaled:.97,wound:.95,bleeding_heavy:.3},
+  ev:{mvc:.1,impaled:.97,wound:.95,bleeding_heavy:.3},
   aid:['Predmet nevyťahuj – môže upchávať krvácanie.','Zafixuj ho obväzom okolo, aby sa nehýbal.','Volaj 155.']},
  {id:'laceration',PAINW:[.4,.45,.15],name:'Rana (porezanie, tržná rana)',prior:.03,urg:A=>A.wound_deep?'orange':'green',src:['ERC25'],
-  ev:{wound:.98,wound_deep:.4,bleeding_heavy:.03,fall:.3},
+  ev:{mvc:.05,wound:.98,wound_deep:.4,bleeding_heavy:.03,fall:.3},
   aid:['Umy ranu čistou tečúcou vodou, prikry čistým obväzom a stlač, ak krváca.','Hlbokú, zívajúcu, znečistenú ranu alebo ranu na tvári treba ošetriť do 6–8 hodín (zošitie).','Over očkovanie proti tetanu – ak bolo pred viac ako 10 rokmi, lekár.']},
  {id:'tooth',name:'Vybitý alebo zlomený zub',prior:.006,urg:'yellow',src:['ERC25'],
   ev:{tooth:.97,fall:.6,head_injury:.6},
@@ -850,7 +855,7 @@ COND: [
 
   /* ===== v0.10: ženy, deti (vyrážky), seniori, ďalšie ===== */
  {id:'long_lie',name:'Dlhé ležanie na zemi po páde (podchladenie, rozpad svalov)',prior:.003,urg:A=>(A.confusion||A.cold_env||A.drowsy)?'red':'orange',src:['EST'],
-  ev:{long_lie:.97,fall:.9,weakness:.7,confusion:.35,cold_env:.3,low_drink:.5,hip_injury:.25,drowsy:.2,limb_problem:.3},
+  ev:{cant_stand:.8,long_lie:.97,fall:.9,weakness:.7,confusion:.35,cold_env:.3,low_drink:.5,hip_injury:.25,drowsy:.2,limb_problem:.3},
   vars:{age:[0,0,.05,.2,.75]},
   aid:['Ak ho niečo bolí alebo nevie vstať, nedvíhaj ho násilím.','Prikry ho dekou; ak je pri vedomí a nezvracia, daj mu po dúškoch piť.','Volaj 155 – po dlhom ležaní hrozí podchladenie, odvodnenie a poškodenie obličiek z rozpadu svalov.']},
  {id:'tga',name:'Prechodná strata pamäti (tranzitórna globálna amnézia)',prior:.002,urg:'orange',src:['EST'],
@@ -958,7 +963,10 @@ SAFETY: [
  {id:'gibleed',when:A=>A.blood_gi===true,urg:'red',alert:'gibleed',why:'Krv vo zvratkoch / čierna stolica'},
  {id:'abd',when:A=>A.abd_pain===true&&!(A.period_pain===true&&A.pain!=='sev'&&A.pregnant!==true&&A.fever!==true),urg:'orange',why:'Silná bolesť brucha'},
  {id:'spine',when:A=>A.neck_injury===true,urg:'red',alert:'spine',why:'Bolesť krku/chrbta alebo tŕpnutie po úraze (možné poranenie chrbtice)'},
- {id:'hip',when:A=>A.hip_injury===true,urg:'red',alert:'hip',why:'Po páde sa nevie postaviť, bolí bedro (možná zlomenina)'},
+ {id:'mvc',when:A=>A.mvc===true,urg:'orange',alert:'mvc',why:'Dopravná nehoda – aj bez viditeľných zranení môžu byť vnútorné poranenia'},
+ {id:'hip',when:A=>A.hip_injury===true&&(A.cant_stand===true||A.age==='senior'),urg:'red',alert:'hip',why:'Po páde bolí bedro a nevie sa postaviť (možná zlomenina)'},
+ {id:'hip2',when:A=>A.hip_injury===true&&A.cant_stand!==true&&A.age!=='senior',urg:'orange',why:'Bolesť bedra po páde'},
+ {id:'cantstand',when:A=>A.cant_stand===true&&A.fall===true,urg:'orange',why:'Po páde sa nevie postaviť'},
  {id:'limb',when:A=>A.limb_deform===true,urg:'orange',alert:'fracture',why:'Zdeformovaná / nehybná končatina'},
  {id:'burn_big',when:A=>A.burn_large===true,urg:'red',alert:'burn',why:'Veľká alebo riziková popálenina'},
  {id:'burn',when:A=>A.burn===true,urg:'yellow',alert:'burn',why:'Popálenina'},
@@ -983,6 +991,9 @@ SAFETY: [
  {id:'uti',when:A=>A.urinary===true,urg:'yellow',why:'Ťažkosti s močením'},
  {id:'drink',when:A=>A.low_drink===true,urg:'yellow',why:'Málo pije'},
  {id:'headache',when:A=>A.headache===true&&!(A.fever===true&&A.flu_like===true)&&!(A.sinus===true&&A.pain!=='sev'&&A.age!=='senior')&&!(A.pain==='mild'&&A.age!=='senior'),urg:'yellow',why:'Bolesť hlavy'},
+ {id:'fontanelle',when:A=>A.fontanelle===true,urg:'red',alert:'mening',why:'Vypuklá fontanela u dojčaťa (možný zápal mozgových blán)'},
+ {id:'floppy',when:A=>A.infant_floppy===true,urg:'red',why:'Ochabnuté dojča, nereaguje ako zvyčajne'},
+ {id:'infbreath',when:A=>A.infant_breath===true,urg:A=>(A.fast_breath===true||A.brue===true||A.poor_feeding===true)?'red':'orange',alert:'kidbreath',why:'Dojča dýcha namáhavo'},
  {id:'infant_fever',when:A=>A.young_infant===true&&A.fever===true,urg:'red',alert:'infantfever',why:'Horúčka u dojčaťa mladšieho ako 3 mesiace'},
  {id:'infant_dry',when:A=>A.infant_dry===true,urg:'orange',why:'Známky odvodnenia u dieťaťa'},
  {id:'infant_dry_red',when:A=>A.infant_dry===true&&(A.drowsy===true||A.young_infant===true),urg:'red',why:'Odvodnenie u dojčaťa alebo spavého dieťaťa'},
@@ -1106,6 +1117,7 @@ ALERTS: {
   q:'Ak je pri vedomí a bezpečne prehĺta: daj 15–20 g cukru – sladký nápoj (džús, sladená limonáda), 3–4 kocky cukru alebo glukózové tablety. Ak je ospalý alebo sa dusí, nič mu nedávaj do úst a volaj 155. O 10–15 minút sa ťa opýtam, či sa zlepšil.'},
  abdomen:{t:'Náhla brušná príhoda',ico:'🧱',q:'Volaj 155. Nech nič neje ani nepije a leží v polohe, ktorá ho najmenej bolí (často s pokrčenými nohami).'},
  gibleed:{t:'Krvácanie do tráviaceho traktu',ico:'🩸',q:'Volaj 155. Nech leží, pri slabosti mu zdvihni nohy. Nič mu nedávaj jesť ani piť. Ak zvracia, ulož ho na bok.'},
+ mvc:{t:'Po dopravnej nehode',ico:'🚗',call:'112',q:'Ak ešte nikto nevolal, volaj 112 (záchranka, hasiči aj polícia naraz). Nevyťahuj ho z auta, ak nehrozí požiar alebo iné nebezpečenstvo. Drž mu hlavu v osi s telom, motocyklistovi nesnímaj prilbu, ak normálne dýcha. Prikry ho, aby neprechladol.'},
  spine:{t:'Možné poranenie chrbtice',ico:'🦴',q:'Volaj 155. Nehýb s ním – nech zostane v polohe, v ktorej je, a drž mu hlavu v osi s telom. Hýb ním len ak hrozí nebezpečenstvo alebo nedýcha.'},
  hip:{t:'Možná zlomenina bedra',ico:'🦵',q:'Volaj 155 – na prevoz treba záchranku. Nehýb s ním, podlož mu hlavu, prikry ho. Nedávaj mu jesť ani piť.'},
  fracture:{t:'Možná zlomenina',ico:'🦴',call:'none',cont:'Pokračovať',q:'Znehybni končatinu v polohe, v akej je (šatka, vankúš, dlaha). Chlaď zabaleným ľadom najviac 20 minút. Pri otvorenej zlomenine alebo studenej, modrej končatine volaj 155.'},
@@ -1168,4 +1180,17 @@ LEVEL: {
 }
 };
 KB.MAIN=[...new Set(KB.CATS.flatMap(c=>c.items))];
+/* Otázky, ktoré pri dojčati / malom dieťati nedávajú zmysel (nevie povedať, nemôže mať, alebo sa nemeria) */
+(function(){
+ const NA={
+  infant:['immuno','speech','anticoag','hypertension_known','diabetic','drug_use','stimulant','alcohol','withdrawal','homemade_alcohol','suicidal','psychosis','exertion',
+   'chest_radiates','chest_pleuritic','chest_burning_food','chest_lean','pain_tearing','palpitations','headache_sudden','migraine_known','temple_pain','photophobia',
+   'vertigo','vertigo_positional','vertigo_constant','vision','flashes_floaters','hearing_loss','balance','arm_weak','forehead_weak','nausea','anxiety','flu_like',
+   'sore_throat','throat_one_side','voice_muffled','urinary','back_pain','back_lifting','back_red','flank_colic','abd_rlq','abd_ruq','abd_llq','abd_epi_back',
+   'tooth','dental_swelling','sexual_assault','needle_stick','meds_change','repeats_q','period_pain','recent_virus','can_walk4','ankle_twist','achilles','cant_stand','abd_pain','headache','confusion','confusion_sudden','fainted','limb_problem','neck_stiff','weakness','chest_pain','dyspnea','asthma_known'],
+  child:['anticoag','hypertension_known','drug_use','stimulant','withdrawal','homemade_alcohol','alcohol','temple_pain','flashes_floaters','repeats_q','achilles','back_lifting']};
+ for(const [ag,l] of Object.entries(NA))l.forEach(f=>{const X=KB.FIND[f];if(X)X.na=(X.na||[]).concat(ag)});
+ KB.VARS.bp.na=['infant','child'];KB.VARS.pulse.na=['infant'];
+ const g=KB.VARS.glu.req;KB.VARS.glu.req=A=>(A.age==='infant'||A.age==='child')?A.diabetic===true:g(A);
+})();
 if(typeof module!=='undefined')module.exports=KB;
