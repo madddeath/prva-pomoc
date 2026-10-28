@@ -233,7 +233,7 @@ function renderQ(n){
 
 /* ---------- adaptívne otázky ---------- */
 function answer(id,val,label){
- pushHist();const D=S.dx;D.A[id]=val;D.asked.push(id);if(D.soft)delete D.soft[id];if(D.mainDone&&id!=='age')D.n++;
+ pushHist();const D=S.dx;D.A[id]=val;D.asked.push(id);if(id==='temp'&&(val==='hot'||val==='vhot')&&D.A.fever===undefined)D.A.fever=true;if(id==='temp'&&val==='low'&&D.A.cold_env===undefined){}if(D.soft)delete D.soft[id];if(D.mainDone&&id!=='age')D.n++;
  addLog('f',label);show('DX');
 }
 function hypLine(){
@@ -246,6 +246,7 @@ function renderDX(){
  if(A.age===undefined)return renderVar('age');
  if(A.sex===undefined)return renderVar('sex');
  if(!S.onset){S.onset=true;show('ONSET');return}
+ if(!D.catsDone)return renderCats();
  if(!D.mainDone)return renderMain();
  const nx=pickNext();if(!nx){show('DXR');return}
  nx.kind==='var'?renderVar(nx.id):renderBool(nx.id);
@@ -280,20 +281,39 @@ function renderVar(v){
  box.append(optBtn(sk,X.vals.length,act));reg(sk,X.vals.length,act);
  finishBtn(box);w.append(box);app.append(w);
 }
+const dispOk=(f,A)=>{const X=F[f];if(S.dx.mode==='obs'&&!X.obs)return false;if(A[f]===true)return true;try{return X.disp?X.disp(A):(!X.req||X.req(A))}catch(e){return true}};
+function renderCats(){
+ CURQ={say:'Kde je hlavný problém? Vyber jednu alebo viac oblastí a potom povedz hotovo.'};
+ const D=S.dx,A=D.A;
+ const w=qWrap('🧭','Krok 4 · Hlavný problém','Kde je hlavný problém?','Vyber jednu alebo viac oblastí. V ďalšom kroku ukážem len príznaky z nich.');
+ const sel=new Set(D.cats||[]);const box=el('div','opts grid2');
+ KB.CATS.filter(c=>{try{return !c.show||c.show(A)}catch(e){return true}}).forEach((c,i)=>{
+  const b=optBtn({l:c.t,ico:c.ico},i,()=>tog());if(sel.has(c.id))b.classList.add('sel');
+  const tog=()=>{sel.has(c.id)?sel.delete(c.id):sel.add(c.id);b.classList.toggle('sel',sel.has(c.id))};b.onclick=tog;box.append(b);
+  reg({l:c.t,kw:c.t.split(/[ ,]+/).filter(x=>x.length>=4)},i,()=>{tog();toast((sel.has(c.id)?'Označené: ':'Odznačené: ')+c.t)})});
+ w.append(box);
+ const b2=el('div','opts');
+ const done=()=>{pushHist();D.cats=[...sel];D.catsDone=true;if(!sel.size){D.mainDone=true}show('DX')};
+ const d=optBtn({l:'Pokračovať',ico:'➜'},-1,done);d.classList.add('primary');b2.append(d);
+ const none=()=>{pushHist();D.cats=[];D.catsDone=true;D.mainDone=true;show('DX')};
+ b2.append(optBtn({l:'Neviem / nič konkrétne',ico:'❓',cls:'ghost'},-1,none));
+ CUR.push({kw:['hotovo','dalej','pokracovat'],i:-1,act:done});CUR.push({kw:['neviem','nic konkretne'],i:-1,act:none});
+ w.append(b2);app.append(w);
+}
 function renderMain(){
  CURQ={say:'Čo pozoruješ? Označ všetko, čo platí, a potom povedz hotovo.'};
- const A=S.dx.A;
- const w=qWrap('🔎','Krok 4 · Príznaky','Čo pozoruješ?','Označ všetko, čo platí. Čo neoznačíš, beriem, že to nemá – na dôležité sa ešte opýtam.');
+ const D=S.dx,A=D.A;
+ const w=qWrap('🔎','Krok 5 · Príznaky','Čo pozoruješ?','Označ všetko, čo platí. Na ďalšie sa opýtam postupne.');
  const sel=new Set(KB.MAIN.filter(f=>A[f]===true));let i=0;const shown=[];
- KB.MAIN_GROUPS.forEach(([title,items])=>{
-  const vis=items.filter(f=>{const X=F[f];if(S.dx.mode==='obs'&&!X.obs)return false;try{return !X.req||X.req(A)||A[f]===true}catch(e){return true}});
+ KB.CATS.filter(c=>(D.cats||[]).includes(c.id)).forEach(c=>{
+  const vis=c.items.filter(f=>!shown.includes(f)&&dispOk(f,A));
   if(!vis.length)return;
-  w.append(el('div','grp',esc(title)));const box=el('div','opts grid2');
+  w.append(el('div','grp',esc(c.ico+' '+c.t)));const box=el('div','opts grid2');
   vis.forEach(f=>{const X=F[f];const n=i++;shown.push(f);const b=optBtn({l:X.t,ico:X.ico},n,()=>tog());if(sel.has(f))b.classList.add('sel');
    const tog=()=>{sel.has(f)?sel.delete(f):sel.add(f);b.classList.toggle('sel',sel.has(f))};b.onclick=tog;box.append(b);
    reg({l:X.t,kw:[X.t.split(' ')[0]]},n,()=>{tog();toast((sel.has(f)?'Označené: ':'Odznačené: ')+X.t)})});
   w.append(box)});
- const done=()=>{pushHist();shown.forEach(f=>{if(sel.has(f)){if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}}else if(A[f]===undefined){A[f]=false;(S.dx.soft=S.dx.soft||{})[f]=true}});S.dx.mainDone=true;show('DX')};
+ const done=()=>{pushHist();shown.forEach(f=>{if(sel.has(f)){if(A[f]!==true){A[f]=true;addLog('f',F[f].t+': áno')}}else if(A[f]===undefined){A[f]=false;(D.soft=D.soft||{})[f]=true}});D.mainDone=true;show('DX')};
  const box=el('div','opts');const d=optBtn({l:'Hotovo',ico:'➜'},-1,done);d.classList.add('primary');box.append(d);
  CUR.push({kw:['hotovo','dalej','nic z toho','pokracovat'],i:-1,act:done});
  w.append(box);app.append(w);
@@ -359,7 +379,7 @@ function renderStart(){
  box.append(callBtn('155'));w.append(box);
  w.append(el('div','card',`<h2>Ako to funguje</h2><ul class="list small">
   <li>Najprv overí to najdôležitejšie: vedomie, dýchanie, bezprostredné ohrozenie.</li>
-  <li>Potom sa opýta, kto to je (vek, pohlavie), kedy to začalo a čo pozoruješ.</li>
+  <li>Potom sa opýta, kto to je (vek, pohlavie), kedy to začalo, kde je hlavný problém a čo pozoruješ – podobne ako triáž na urgentnom príjme.</li>
   <li>Ďalej kladie otázky, ktoré najlepšie rozlíšia možné príčiny – každá odpoveď prepočíta pravdepodobnosti.</li>
   <li>Pri vážnom zistení hneď ukáže, čo robiť, a tlačidlo na 155. Otázky môžeš dokončiť počas čakania.</li>
   <li>Na konci: odporúčanie, možné príčiny a <b>súhrn pre záchranku / lekára</b>.</li></ul>

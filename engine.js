@@ -9,7 +9,7 @@ const F=KB.FIND,V=KB.VARS,C=KB.COND;
 /* váhy môžu závisieť od veku: c.eva = {child:{...}, senior:{...}} */
 function pf(c,f){const ag=S&&S.dx&&S.dx.A.age;const o=c.eva&&ag&&(c.eva[ag]||(ag==='infant'&&c.eva.child));
  if(o&&o[f]!==undefined)return clamp(o[f]);return clamp(c.ev[f]!==undefined?c.ev[f]:F[f].q)}
-function pv(c,v,val){const X=V[v];const i=X.vals.findIndex(x=>x[0]===val);let arr=(c.vars&&c.vars[v])||X.base;
+function pv(c,v,val){const X=V[v];const i=X.vals.findIndex(x=>x[0]===val);let arr=(c.vars&&c.vars[v])||(v==='pain'&&c.PAINW)||(v==='temp'&&c.TEMPW)||X.base;
  if(v==='age'&&arr.length===4)arr=[arr[0]*.3,arr[0]*.7,arr[1],arr[2],arr[3]]; // staré 4-hodnotové váhy: dieťa → dojča + dieťa
 const s=arr.reduce((a,b)=>a+b,0);return clamp(arr[i]/s)}
 function urgOf(c,A){return typeof c.urg==='function'?c.urg(A):c.urg}
@@ -38,13 +38,18 @@ function pickNext(){
  /* zameranie: informačný zisk len medzi stavmi, ktoré ešte prichádzajú do úvahy */
  let Pf=P.map((p,i)=>(p>=.02||C[i].id==='other')?p:0);const z=Pf.reduce((a,b)=>a+b,0);Pf=Pf.map(p=>p/z);
  let best=null,bs=-1,rf=null;
+ /* otázky mimo vybraných oblastí majú nižšiu prioritu (používateľ už povedal, kde je problém) */
+ const inCats=new Set();if(D.cats&&KB.CATS)KB.CATS.filter(c=>D.cats.includes(c.id)).forEach(c=>c.items.forEach(f=>inCats.add(f)));
+ const mainSet=KB.MAINSET||(KB.MAINSET=new Set(KB.MAIN));
  for(const f in F){if(!eligible(f,false))continue;
-  const sc=igBool(Pf,f)+1.0*urgRel(P,A,f)+prioOf(F[f],A)-((D.soft&&D.soft[f])?.12:0);
+  const off=(D.cats&&D.cats.length&&mainSet.has(f)&&!inCats.has(f))?.1:0;
+  const sc=igBool(Pf,f)+1.0*urgRel(P,A,f)+prioOf(F[f],A)-((D.soft&&D.soft[f])?.12:0)-off;
   if(sc>bs){bs=sc;best={kind:'bool',id:f,sc}}
   if(F[f].rf&&F[f].req&&(!rf||sc>rf.sc))rf={kind:'bool',id:f,sc}}
  for(const v in V){if(v==='age'||v==='sex'||!eligible(v,true))continue;const sc=igVar(Pf,v)+prioOf(V[v],A);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
  if(!best)return null;
- const top=Math.max(...P),maxQ=16+D.extra;
+ let lvNow='green';safety(A).forEach(r=>lvNow=lvMax(lvNow,r.u));
+ const top=Math.max(...P),maxQ=((lvNow==='red'&&Math.max(...P)>.4)?10:16)+D.extra; // pri 155 len to najdôležitejšie pre záchranárov
  if(best.sc<2){ // prio>=2 = vynútená otázka
   const stop=D.n>=maxQ||(D.n>=4&&top>.8)||(D.n>=3&&best.sc<.03);
   if(stop)return rf||recheck(P); // pred ukončením: zostávajúce varovné otázky, potom kontrola prehliadnutých
