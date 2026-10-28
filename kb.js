@@ -12,7 +12,7 @@
    SAFETY= bezpečnostné pravidlá nezávislé od diagnózy (minimálna naliehavosť + okamžitý pokyn).
    ===================================================================== */
 const KB = {
-version: '0.9.1',
+version: '0.9.2',
 
 /* ---------- ZDROJE ---------- */
 REFS: {
@@ -53,7 +53,7 @@ FIND: {
  speech:{q:.1,t:'Porucha reči / mrmle',obs:0,ico:'💬',ask:'Hovorí nezrozumiteľne, mrmle alebo používa zlé slová?',hint:'Nech zopakuje: „Dnes je pekný slnečný deň."'},
  balance:{q:.07,prio:A=>A.vertigo===true||A.nausea===true&&A.vertigo!==false?.8:0,t:'Náhla porucha rovnováhy / chôdze',obs:1,ico:'🚶',ask:'Náhle nevie udržať rovnováhu, potáca sa alebo nevie chodiť?'},
  vision:{q:.04,prio:A=>A.vertigo===true||A.balance===true?.8:0,t:'Náhla porucha zraku / dvojité videnie',obs:0,ico:'👁️',ask:'Náhle zle vidí, vidí dvojmo alebo nevidí časť priestoru?'},
- symptoms_resolved:{rf:1,q:.3,t:'Príznaky mozgovej príhody už zmizli',obs:1,ico:'↩️',ask:'Sú tieto príznaky (tvár, ruka, reč) už úplne preč?',req:A=>A.face_droop===true||A.arm_weak===true||A.speech===true},
+ symptoms_resolved:{rf:1,q:.3,t:'Príznaky mozgovej príhody už zmizli',obs:1,ico:'↩️',ask:A=>{const x=[A.face_droop===true&&'ovisnutý kútik',A.arm_weak===true&&'slabá ruka',A.speech===true&&'porucha reči'].filter(Boolean);return 'Prešlo už úplne to, čo si označil'+(x.length?' ('+x.join(', ')+')':'')+'?'},yes:'Áno, už to prešlo',no:'Nie, stále to trvá',hint:'Lekár potrebuje vedieť, či príznaky ešte trvajú. Volať 155 treba v oboch prípadoch.',req:A=>A.face_droop===true||A.arm_weak===true||A.speech===true},
  headache:{q:.15,t:'Silná bolesť hlavy',obs:0,ico:'🤕',ask:'Má silnú bolesť hlavy?'},
  headache_sudden:{rf:1,q:.05,t:'Náhla prudká bolesť hlavy („najhoršia v živote")',obs:0,ico:'🤯',ask:'Prišla bolesť hlavy úplne náhle, ako úder – „najhoršia v živote"?',req:A=>A.headache===true},
  migraine_known:{q:.15,t:'Podobné bolesti hlavy mával už predtým',obs:0,ico:'🔁',ask:'Mával už predtým presne takéto bolesti hlavy (napr. migrénu)?',req:A=>A.headache===true},

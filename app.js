@@ -115,7 +115,7 @@ function summaryText(){
  let s=`SÚHRN PRE ZÁCHRANKU / LEKÁRA\n${d.toLocaleDateString('sk-SK')} ${tm()}\n`;
  s+=`Situácia: ${S.scen||'–'}\n`;
  const age=S.dx.A.age&&S.dx.A.age!=='?'?V.age.vals.find(x=>x[0]===S.dx.A.age)[1]:'';
- const sx=S.dx.A.sex&&S.dx.A.sex!=='?'?V.sex.vals.find(x=>x[0]===S.dx.A.sex)[1]:'';
+ const sx=sexLabel(S.dx.A);
  const p=[sx,age].filter(Boolean).join(', ');if(p)s+=`Pacient: ${p}\n`;
  const vit=[S.dx.A.bp&&S.dx.A.bp!=='?'?'TK '+V.bp.vals.find(x=>x[0]===S.dx.A.bp)[1]:'',S.dx.A.pulse&&S.dx.A.pulse!=='?'?'pulz '+V.pulse.vals.find(x=>x[0]===S.dx.A.pulse)[1]:'',S.dx.A.glu&&S.dx.A.glu!=='?'?'glykémia '+V.glu.vals.find(x=>x[0]===S.dx.A.glu)[1]:''].filter(Boolean).join(', ');if(vit)s+=`Namerané: ${vit}\n`;
  if(S.onsetTxt)s+=`Naposledy v poriadku: ${S.onsetTxt.toLowerCase()}\n`;
@@ -163,9 +163,11 @@ function keyFindings(){
  pos.sort((a,b)=>(F[b].rf?1:0)-(F[a].rf?1:0));
  return pos.map(k=>F[k].t);
 }
+function sexLabel(A){if(!A.sex||A.sex==='?')return'';const kid=A.age==='infant'||A.age==='child',adult=A.age&&A.age!=='?'&&!kid;
+ return A.sex==='m'?(kid?'Chlapec':adult?'Muž':'Muž / chlapec'):(kid?'Dievča':adult?'Žena':'Žena / dievča')}
 function briefData(){
  const A=S.dx.A,vv=(k)=>A[k]&&A[k]!=='?'?V[k].vals.find(x=>x[0]===A[k])[1]:'';
- const who=[vv('sex'),vv('age')].filter(Boolean).join(', ')||'–';
+ const ag=vv('age');const who=[sexLabel(A),sexLabel(A)&&ag?ag.charAt(0).toLowerCase()+ag.slice(1):ag].filter(Boolean).join(', ')||'–';
  const fx=keyFindings();
  const vit=[vv('bp')&&'tlak '+vv('bp'),vv('pulse')&&'pulz '+vv('pulse'),vv('temp')&&'teplota '+vv('temp'),vv('glu')&&'cukor '+vv('glu'),vv('pain')&&'bolesť '+vv('pain')].filter(Boolean);
  const done=S.log.filter(x=>x.k==='a'&&!/^Volané|^Poloha/.test(x.txt)).map(x=>x.txt);
@@ -174,7 +176,7 @@ function briefData(){
 }
 function briefText(){
  const b=briefData(),l=locLines();let s='';
- s+='KDE: '+(l&&!l.err?((l.addr?l.addr+' · ':'')+'GPS '+l.dec+' (±'+l.acc+' m)'):'[povedz adresu alebo opíš miesto]')+'\n';
+ s+='KDE: '+(l&&!l.err?((l.addr?l.addr+' · ':'')+l.say):'[povedz adresu alebo opíš miesto]')+'\n';
  s+='KTO: '+b.who+'\n';
  s+='ČO SA DEJE: '+(b.fx.slice(0,6).join('; ')||b.st.join(', ')||'–')+'\n';
  if(b.onset)s+='ZAČIATOK: '+b.onset.toLowerCase()+'\n';
@@ -192,7 +194,7 @@ function briefCard(opts={}){
   if(!LOC)loc=`<button class="chip" data-loc>📍 Zistiť moju polohu</button>`;
   else if(LOC.busy)loc='Zisťujem polohu…';
   else if(l.err)loc=esc(l.err)+` <button class="chip" data-loc>Skúsiť znova</button>`;
-  else loc=`${l.addr?'<b>'+esc(l.addr)+'</b><br>':''}<span class="gps">${l.dec}</span><br><span class="small">${l.dms} · presnosť ±${l.acc} m${l.acc>100?' – nepresné, opíš aj okolie':''}</span><br><span class="small">Nadiktuj: „${l.say}“</span><br><button class="chip" data-copyloc>📄 Kopírovať súradnice</button> <a class="chip" target="_blank" href="https://maps.google.com/?q=${l.dec.replace(/ [NE]/g,'')}">🗺️ Mapa</a>`;
+  else loc=`${l.addr?'<b>'+esc(l.addr)+'</b><br>':''}<span class="gps">${l.say}</span>${l.acc>100?' <span class="small">(nepresné – opíš aj okolie)</span>':''}<br><a class="chip" target="_blank" href="https://maps.google.com/?q=${LOC.lat.toFixed(5)},${LOC.lon.toFixed(5)}">🗺️ Mapa</a>`;
   c.innerHTML=`<h2>📞 Čo povedať do telefónu</h2>
    ${row('📍 Kde',loc)}
    ${row('👤 Kto',esc(gx(b.who)))}
@@ -201,9 +203,8 @@ function briefCard(opts={}){
    ${b.st.length?row('🫀 Stav',esc(gx(b.st.join(', ')))):''}
    ${b.vit.length?row('📏 Namerané',esc(b.vit.join(', '))):''}
    ${b.done.length?row('🩹 Urobil som',esc(gx(b.done.join('; ')))):''}
-   <p class="small">Daj hovor na reproduktor, odpovedaj na otázky dispečera a nezaväzuj prvý. Zo smartfónu sa poloha pri volaní na 155/112 zvyčajne odošle aj automaticky (AML) – súradnice sú záloha. V horách: Horská záchranná služba 18 300.</p>`;
+   <p class="small">Daj hovor na reproduktor, odpovedaj na otázky dispečera a nezaväzuj prvý. V horách: Horská záchranná služba 18 300.</p>`;
   const lb=c.querySelector('[data-loc]');if(lb)lb.onclick=()=>getLoc(draw);
-  const cb=c.querySelector('[data-copyloc]');if(cb)cb.onclick=()=>copyText(l.dec+(l.addr?' ('+l.addr+')':''));
  };
  draw();
  if(!LOC&&navigator.permissions)navigator.permissions.query({name:'geolocation'}).then(p=>{if(p.state==='granted'&&!LOC)getLoc(draw)}).catch(()=>{});
@@ -223,15 +224,18 @@ function showBrief(){
  w.append(box);app.append(w);
 }
 function alertBanner(){
- const ks=S.alerts.filter(k=>KB.ALERTS[k]&&!BLOCK.has(k));if(!ks.length)return null;
- const k=ks[ks.length-1],a=KB.ALERTS[k],num=a.call||'155';
- const b=el('div','banner');
- b.innerHTML=`<div class="bt"><span>${a.ico||'⚠️'}</span><b>${esc(gx(a.t))}</b>${ks.length>1?`<span class="small" style="color:#fff">+${ks.length-1}</span>`:''}</div>
-  <div class="bb">${num!=='none'?`<a class="bbtn call" href="tel:${num}">📞 ${esc(a.callLabel||num)}</a>`:''}<button class="bbtn" data-brief>Čo povedať</button><button class="bbtn" data-what>Čo robiť ▾</button></div>
-  <div class="bq" hidden>${ks.map(x=>{const y=KB.ALERTS[x];return `<p><b>${y.ico||''} ${esc(gx(y.t))}:</b> ${esc(gx(y.q||''))}</p>`}).join('')}<p class="small" style="color:#fff">Ak to vyzerá vážne, volaj hneď. Otázky môžeš dokončiť aj počas čakania na záchranku – spresnia informácie pre lekára.</p></div>`;
- const ca=b.querySelector('.call');if(ca)ca.onclick=()=>logCall(num);
+ const A=S.dx.A,sf=safety(A).filter(r=>r.u==='red'||r.u==='orange');if(!sf.length)return null;
+ let lv='orange';if(sf.some(r=>r.u==='red'))lv='red';
+ const rs=sf.filter(r=>r.u===lv),ks=[...new Set(sf.map(r=>r.alert).filter(k=>k&&KB.ALERTS[k]&&!BLOCK.has(k)))];
+ const L=KB.LEVEL[lv],b=el('div','banner'+(lv==='orange'?' or':''));
+ const extra=ks.map(k=>KB.ALERTS[k]).filter(a=>a.call&&a.call!=='155'&&a.call!=='none');
+ b.innerHTML=`<div class="bt"><span>${L.ico}</span><b>${esc(L.label)}</b></div>
+  <div class="small bw">Dôvod: ${esc(gx(rs[0].why))}${rs.length>1?` (+${rs.length-1} ďalší)`:''}</div>
+  <div class="bb"><a class="bbtn call" href="tel:155">📞 155</a><button class="bbtn" data-brief>Čo povedať</button>${ks.length?'<button class="bbtn" data-what>Čo robiť ▾</button>':''}</div>
+  <div class="bq" hidden>${sf.length>1?`<p><b>Všetky dôvody:</b> ${sf.map(r=>esc(gx(r.why))).join(' · ')}</p>`:''}${ks.map(x=>{const y=KB.ALERTS[x];return `<p><b>${y.ico||''} ${esc(gx(y.t))}:</b> ${esc(gx(y.q||''))}</p>`}).join('')}${extra.map(a=>`<a class="bbtn" href="tel:${a.call}">📞 ${esc(a.callLabel||a.call)}</a> `).join('')}<p class="small bw">Varovné príznaky sa vyhodnocujú zvlášť od odhadu príčiny: aj keď najviac sedí iná príčina, tieto príznaky laik nevie bezpečne vylúčiť. Otázky môžeš dokončiť aj počas čakania na záchranku.</p></div>`;
+ b.querySelector('.call').onclick=()=>logCall('155');
  b.querySelector('[data-brief]').onclick=showBrief;
- b.querySelector('[data-what]').onclick=e=>{const q=b.querySelector('.bq');q.hidden=!q.hidden;e.target.textContent=q.hidden?'Čo robiť ▾':'Skryť ▴'};
+ const wb=b.querySelector('[data-what]');if(wb)wb.onclick=e=>{const q=b.querySelector('.bq');q.hidden=!q.hidden;e.target.textContent=q.hidden?'Čo robiť ▾':'Skryť ▴'};
  return b;
 }
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast('Skopírované')}
@@ -367,10 +371,10 @@ function finishBtn(box){
  box.append(optBtn(o,-1,act));CUR.push({kw:['vyhodnotit','vyhodnot','koniec'],i:-1,act});
 }
 function renderBool(f){
- const X=F[f];CURQ={say:gx(X.ask)};
- const w=qWrap(X.ico,`Otázka ${S.dx.n+1}`+(S.dx.mode==='obs'?' · pozoruj':''),X.ask,X.hint);
+ const X=F[f],ask=typeof X.ask==='function'?X.ask(S.dx.A):X.ask;CURQ={say:gx(ask)};
+ const w=qWrap(X.ico,`Otázka ${S.dx.n+1}`+(S.dx.mode==='obs'?' · pozoruj':''),ask,X.hint);
  const box=el('div','opts');
- [{l:'Áno',ico:'✅',v:true,kw:['ano','hej','jo','ma','mal','je']},{l:'Nie',ico:'❌',v:false,kw:['nie','nema','nemal','neni']},{l:'Neviem',ico:'❓',v:'?',kw:['neviem','nevie','netusim']}]
+ [{l:X.yes||'Áno',ico:'✅',v:true,kw:['ano','hej','jo','ma','mal','je','preslo']},{l:X.no||'Nie',ico:'❌',v:false,kw:['nie','nema','nemal','neni']},{l:'Neviem',ico:'❓',v:'?',kw:['neviem','nevie','netusim']}]
   .forEach((o,i)=>{const act=()=>{if(o.v==='?'){pushHist();S.dx.asked.push(f);S.dx.n++;if(S.dx.soft&&S.dx.soft[f]){delete S.dx.soft[f];delete S.dx.A[f]}addLog('f',X.t+': nevie');show('DX')}else answer(f,o.v,X.t+': '+(o.v?'áno':'nie'))};
    box.append(optBtn(o,i,act));reg(o,i,act)});
  finishBtn(box);w.append(box);app.append(w);

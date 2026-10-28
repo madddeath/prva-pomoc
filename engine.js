@@ -14,10 +14,19 @@ function pv(c,v,val){const X=V[v];const i=X.vals.findIndex(x=>x[0]===val);let ar
 const s=arr.reduce((a,b)=>a+b,0);return clamp(arr[i]/s)}
 function urgOf(c,A){return typeof c.urg==='function'?c.urg(A):c.urg}
 /* posterior: Bayes nad všetkými stavmi */
+/* príznaky z oblastí, ktoré používateľ nevybral = slabé „nie" (inak by ostali vo hre napr. popálenina pri psychike) */
+var OFFN=.35;
+/* základné triážne otázky (ako vitálne funkcie v ESI/CTAS) sa pýtajú vždy, bez ohľadu na zvolenú oblasť */
+var CORE=new Set(['fever','dyspnea','chest_pain','confusion','abd_pain','headache','fainted','bleeding_heavy','weakness','vomiting']);
+function offSet(){const D=S.dx;if(!D||!D.cats||!D.cats.length||!KB.CATS)return new Set();
+ const key=D.cats.join(',');if(D._offKey===key)return D._off;
+ const inC=new Set();KB.CATS.filter(c=>D.cats.includes(c.id)).forEach(c=>c.items.forEach(f=>inC.add(f)));
+ D._off=new Set(KB.MAIN.filter(f=>!inC.has(f)&&!CORE.has(f)&&!F[f].rf));D._offKey=key;return D._off}
 function postVec(A){
+ const off=offSet();
  const l=C.map(c=>{let s=Math.log(c.prior);
   const soft=(S.dx&&S.dx.soft)||{};
-  for(const f in F){if(A[f]===true)s+=Math.log(pf(c,f));else if(A[f]===false)s+=(soft[f]?.5:1)*Math.log(1-pf(c,f))}
+  for(const f in F){if(A[f]===true)s+=Math.log(pf(c,f));else if(A[f]===false)s+=(soft[f]?.5:1)*Math.log(1-pf(c,f));else if(off.has(f))s+=OFFN*Math.log(1-pf(c,f))}
   for(const v in V){if(A[v]&&A[v]!=='?')s+=Math.log(pv(c,v,A[v]))}
   return s});
  const m=Math.max(...l),e=l.map(x=>Math.exp(x-m)),z=e.reduce((a,b)=>a+b,0);return e.map(x=>x/z);
@@ -33,6 +42,7 @@ function urgRel(P,A,f){let r=0;C.forEach((c,i)=>{if(urgOf(c,A)==='red')r+=P[i]*M
 function eligible(id,isVar){const D=S.dx,A=D.A;if(D.asked.includes(id))return false;if(A[id]!==undefined&&!(D.soft&&D.soft[id]))return false;
  const X=isVar?V[id]:F[id];if(D.mode==='obs'&&!X.obs)return false;if(X.req&&!X.req(A))return false;return true}
 const prioOf=(X,A)=>typeof X.prio==='function'?X.prio(A):(X.prio||0);
+var OFFW=.35;
 function pickNext(){
  const D=S.dx,A=D.A,P=postVec(A);
  /* zameranie: informačný zisk len medzi stavmi, ktoré ešte prichádzajú do úvahy */
@@ -42,14 +52,15 @@ function pickNext(){
  const inCats=new Set();if(D.cats&&KB.CATS)KB.CATS.filter(c=>D.cats.includes(c.id)).forEach(c=>c.items.forEach(f=>inCats.add(f)));
  const mainSet=KB.MAINSET||(KB.MAINSET=new Set(KB.MAIN));
  for(const f in F){if(!eligible(f,false))continue;
-  const off=(D.cats&&D.cats.length&&mainSet.has(f)&&!inCats.has(f))?.1:0;
-  const sc=igBool(Pf,f)+1.0*urgRel(P,A,f)+prioOf(F[f],A)-((D.soft&&D.soft[f])?.12:0)-off;
+  const off=offSet().has(f)?OFFW:1; // oblasť nevybral → príznak je menej pravdepodobný, pýtame sa naň neskôr
+  const sc=(igBool(Pf,f)+1.0*urgRel(P,A,f))*off+prioOf(F[f],A)-((D.soft&&D.soft[f])?.12:0);
   if(sc>bs){bs=sc;best={kind:'bool',id:f,sc}}
   if(F[f].rf&&F[f].req&&(!rf||sc>rf.sc))rf={kind:'bool',id:f,sc}}
  for(const v in V){if(v==='age'||v==='sex'||!eligible(v,true))continue;const sc=igVar(Pf,v)+prioOf(V[v],A);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
  if(!best)return null;
  let lvNow='green';safety(A).forEach(r=>lvNow=lvMax(lvNow,r.u));
- const top=Math.max(...P),maxQ=22+D.extra; // pýtame sa až do vyčerpania užitočných otázok (appka je pre nejasné prípady)
+ const top=Math.max(...P),maxQ=20+D.extra; // pýtame sa až do vyčerpania užitočných otázok (appka je pre nejasné prípady)
+ if(D.n>=maxQ+5)return null; // tvrdý strop vrátane varovných a kontrolných otázok
  if(best.sc<2){ // prio>=2 = vynútená otázka
   const stop=D.n>=maxQ||(D.n>=8&&top>.92)||(D.n>=3&&best.sc<.02);
   if(stop)return rf||recheck(P); // pred ukončením: zostávajúce varovné otázky, potom kontrola prehliadnutých
