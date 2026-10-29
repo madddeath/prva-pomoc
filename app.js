@@ -237,15 +237,16 @@ function showBrief(){
  w.append(box);app.append(w);
 }
 function alertBanner(){
- const A=S.dx.A,sf=safety(A).filter(r=>r.u==='red'||r.u==='orange');if(!sf.length)return null;
- let lv='orange';if(sf.some(r=>r.u==='red'))lv='red';
+ const A=S.dx.A,sf=safety(A).filter(r=>r.u==='red'||r.u==='urgent'||r.u==='orange');if(!sf.length)return null;
+ let lv='orange';if(sf.some(r=>r.u==='urgent'))lv='urgent';if(sf.some(r=>r.u==='red'))lv='red';
+ const pend=lv==='urgent'&&sf.some(r=>r.pend);
  const rs=sf.filter(r=>r.u===lv),ks=[...new Set(sf.map(r=>r.alert).filter(k=>k&&KB.ALERTS[k]&&!BLOCK.has(k)))];
- const L=KB.LEVEL[lv],b=el('div','banner'+(lv==='orange'?' or':''));
+ const L=KB.LEVEL[lv],b=el('div','banner'+(lv==='orange'?' or':lv==='urgent'?' ur':''));
  const t=ranked(A)[0];let reason;
  if(S.dx.mainDone&&t.c.id!=='other'&&t.p>=.3&&urgOf(t.c,A)===lv)reason=`${t.p>=.5?'Najviac sedí':'Podozrenie na'}: <b>${esc(t.c.name)}</b>`;
  else reason='Dôvod: '+esc(gx(rs[0].why))+(rs.length>1?` (+${rs.length-1} ďalší)`:'');
  const extra=ks.map(k=>KB.ALERTS[k]).filter(a=>a.call&&a.call!=='155'&&a.call!=='none');
- b.innerHTML=`<div class="bt"><span>${L.ico}</span><b>${esc(L.label)}</b></div>
+ b.innerHTML=`<div class="bt"><span>${pend?'⚠️':L.ico}</span><b>${pend?'MOŽNO VÁŽNE – OVERUJEM':esc(L.label)}</b></div>${pend?'<div class="small bw">Ešte pár otázok rozhodne, či volať 155. Ak sa stav zhoršuje alebo si nie si istý, volaj hneď.</div>':''}
   <div class="small bw">${reason}</div>
   <div class="bb"><a class="bbtn call" href="tel:155">📞 155</a><button class="bbtn" data-brief>Čo povedať</button>${ks.length?'<button class="bbtn" data-what>Čo robiť ▾</button>':''}</div>
   <div class="bq" hidden>${sf.length>1?`<p><b>Všetky dôvody:</b> ${sf.map(r=>esc(gx(r.why))).join(' · ')}</p>`:''}${ks.map(x=>{const y=KB.ALERTS[x];return `<p><b>${y.ico||''} ${esc(gx(y.t))}:</b> ${esc(gx(y.q||''))}</p>`}).join('')}${extra.map(a=>`<a class="bbtn" href="tel:${a.call}">📞 ${esc(a.callLabel||a.call)}</a> `).join('')}<p class="small bw">Varovné príznaky sa vyhodnocujú zvlášť od odhadu príčiny: aj keď najviac sedí iná príčina, tieto príznaky laik nevie bezpečne vylúčiť. Otázky môžeš dokončiť aj počas čakania na záchranku.</p></div>`;
@@ -374,7 +375,7 @@ function renderDX(){
  if(!S.onset){S.onset=true;show('ONSET');return}
  if(!D.catsDone)return renderCats();
  if(!D.mainDone)return renderMain();
- const nx=pickNext();if(!nx){show('DXR');return}
+ const nx=pickNext();if(!nx){D.done=true;show('DXR');return}
  if(nx.kind==='bool'){const g=(KB.GROUPS||[]).find(g=>g.opts.some(o=>o[1]===nx.id)&&g.when(A));
   if(g){const el2=g.opts.filter(o=>o[1]&&eligible(o[1],false));if(el2.length>=2)return renderGroup(g,el2)}}
  nx.kind==='var'?renderVar(nx.id):renderBool(nx.id);
@@ -386,7 +387,7 @@ function qWrap(ico,step,title,hint){
 }
 function finishBtn(box){
  if(!S.dx.mainDone)return;
- const o={l:'Vyhodnotiť teraz',ico:'🏁',cls:'ghost'};const act=()=>{pushHist();show('DXR')};
+ const o={l:'Vyhodnotiť teraz',ico:'🏁',cls:'ghost'};const act=()=>{pushHist();S.dx.done=true;show('DXR')};
  box.append(optBtn(o,-1,act));CUR.push({kw:['vyhodnotit','vyhodnot','koniec'],i:-1,act});
 }
 function renderBool(f){
@@ -499,8 +500,9 @@ function renderResult(){
  const c=el('div','result '+lv,`<div class="step" style="color:inherit;opacity:.85"><span class="big">${L.ico}</span><span>Výsledok</span></div><h1>${L.label}</h1>`);
  c.append(el('ul','list',L.advice.map(x=>`<li>${esc(gx(x))}</li>`).join('')));w.append(c);
  if(lv==='red'||lv==='orange'){const cb=el('div','opts');cb.append(callBtn('155'));w.append(cb);w.append(briefCard())}
- const why=sf.filter(r=>r.u==='red'||r.u==='orange');
- if(why.length)w.append(el('div','card',`<h2>Prečo</h2><ul class="list">${why.map(r=>`<li>${r.u==='red'?'🔴':'🟠'} ${esc(gx(r.why))}</li>`).join('')}</ul>`));
+ if(lv==='urgent'){const cb=el('div','opts');const m=el('a','opt primary','<span class="ico">🏥</span><span>Nájsť najbližší urgentný príjem</span>');m.href='https://www.google.com/maps/search/urgentn%C3%BD+pr%C3%ADjem';m.target='_blank';cb.append(m);cb.append(callBtn('155'));w.append(cb);w.append(briefCard())}
+ const why=sf.filter(r=>r.u==='red'||r.u==='urgent'||r.u==='orange');
+ if(why.length)w.append(el('div','card',`<h2>Prečo</h2><ul class="list">${why.map(r=>`<li>${r.u==='red'?'🔴':r.u==='urgent'?'🟣':'🟠'} ${esc(gx(r.why))}</li>`).join('')}</ul>`));
  if(S.dx.mainDone){
   const card=el('div','card');card.append(el('h2','','🔍 Možné príčiny'));
   card.append(el('p','small','Hrubý odhad podľa odpovedí – nie diagnóza.'));
@@ -508,7 +510,7 @@ function renderResult(){
    const pct=Math.round(p*100),u=urgOf(c,A);
    const row=el('div','');row.style.margin='10px 0';
    row.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.name)}</b><span style="white-space:nowrap">${pct} %</span></div>
-    <div style="height:8px;background:#e8eaed;border-radius:4px;margin-top:4px"><div style="height:8px;width:${Math.max(pct,2)}%;border-radius:4px;background:${{red:'#c62828',orange:'#e65100',yellow:'#f9c623',green:'#2e7d32'}[u]}"></div></div>`;
+    <div style="height:8px;background:#e8eaed;border-radius:4px;margin-top:4px"><div style="height:8px;width:${Math.max(pct,2)}%;border-radius:4px;background:${{red:'#c62828',urgent:'#6a1b9a',orange:'#e65100',yellow:'#f9c623',green:'#2e7d32'}[u]}"></div></div>`;
    if(c.id!=='other'&&p>=.1){const r=reasons(c,A);
     if(r.pro.length)row.append(el('div','small','✔ Pre: '+esc(r.pro.slice(0,5).join(', '))));
     if(r.con.length)row.append(el('div','small','✖ Proti: '+esc(r.con.slice(0,4).join(', '))));}
@@ -519,10 +521,10 @@ function renderResult(){
  }
  const box=el('div','opts');
  if(lv==='orange'||lv==='yellow')w.append(docBox());
- const more=S.dx.mainDone&&(()=>{const D=S.dx;D.extra+=8;const x=pickNext();D.extra-=8;return!!x})();
+ const more=S.dx.mainDone&&(()=>{const D=S.dx,dn=D.done;D.extra+=8;D.done=false;const x=pickNext();D.extra-=8;D.done=dn;return!!x})();
  const acts=[
   {l:'Súhrn pre záchranku / lekára',ico:'📋',cls:'primary',run:showSummary,kw:['suhrn']},
-  ...(more?[{l:'Ďalšie otázky (spresniť)',ico:'➕',run:()=>{pushHist();S.dx.extra+=8;show('DX')},kw:['dalsie','spresnit']}]:[]),
+  ...(more?[{l:'Ďalšie otázky (spresniť)',ico:'➕',run:()=>{pushHist();S.dx.extra+=8;S.dx.done=false;show('DX')},kw:['dalsie','spresnit']}]:[]),
   ...(lv==='red'?[{l:'Prestal dýchať → resuscitácia',ico:'🫀',run:()=>choose(N.DXR,{flag:'cardiac',f:'Prestal dýchať',go:'CPR'}),kw:['prestal','nedycha']}]:[]),
   ...(S.dx.A.mvc===true?[{l:'Posúdiť ďalšieho zraneného',ico:'👥',run:()=>{if('speechSynthesis' in window)speechSynthesis.cancel();S=fresh();S.scen='Dopravná nehoda';S.dx.A.mvc=true;addLog('f','Dopravná nehoda – ďalší zranený');show('S1')},kw:['dalsieho','zraneneho']}]:[]),
   {l:'Nové posúdenie',ico:'⟲',cls:'ghost',run:restart,kw:['nove','znova']}];

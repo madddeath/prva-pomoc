@@ -2,7 +2,8 @@
 /* =====================================================================
    DIAGNOSTICKÉ JADRO
    ===================================================================== */
-const LV=['green','yellow','orange','red'];
+const LV=['green','yellow','orange','urgent','red'];
+const lvMin=(a,b)=>LV.indexOf(a)<=LV.indexOf(b)?a:b;
 const lvMax=(a,b)=>LV.indexOf(a)>=LV.indexOf(b)?a:b;
 const clamp=p=>Math.min(.99,Math.max(.01,p));
 const F=KB.FIND,V=KB.VARS,C=KB.COND;
@@ -57,6 +58,9 @@ function pickNext(){
   if(sc>bs){bs=sc;best={kind:'bool',id:f,sc}}
   if(F[f].rf&&F[f].req&&(!rf||sc>rf.sc))rf={kind:'bool',id:f,sc}}
  for(const v in V){if(v==='age'||v==='sex'||!eligible(v,true))continue;const sc=igVar(Pf,v)+prioOf(V[v],A);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
+ /* najprv potvrdzujúce otázky k predbežnému „155“ */
+ {const pend=[];safety(A).forEach(r=>(r.pend||[]).forEach(f=>{if(!pend.includes(f))pend.push(f)}));
+  for(const f of pend){const isV=!!V[f];if(eligible(f,isV))return{kind:isV?'var':'bool',id:f,sc:3,confirm:true}}}
  if(!best)return null;
  let lvNow='green';safety(A).forEach(r=>lvNow=lvMax(lvNow,r.u));
  const top=Math.max(...P),maxQ=18+D.extra; // pýtame sa až do vyčerpania užitočných otázok (appka je pre nejasné prípady)
@@ -79,11 +83,20 @@ function recheck(P){const D=S.dx,A=D.A;if(!D.soft)return null;
   if(py>=thr&&sc>bs){bs=sc;best={kind:'bool',id:f,sc,recheck:true}}}
  return best;
 }
-function safety(A){const out=[];KB.SAFETY.forEach(r=>{try{if(r.when(A,S)){out.push({...r,u:typeof r.urg==='function'?r.urg(A):r.urg})}}catch(e){}});return out}
+/* Bezpečnostné pravidlá. 155 (red) okamžite len pri pravidlách now:1 (jasné ohrozenie života).
+   Ostatné „155“ sú najprv predbežné (urgent), kým nezaznejú potvrdzujúce otázky (confirm) a aspoň minQ otázok;
+   down() môže naliehavosť znížiť podľa okolností (napr. úder do semenníka, ktorý už ustupuje). */
+function confirmable(f,A){const X=F[f]||V[f];if(!X)return false;if(X.na&&X.na.includes(A.age))return false;if(S.dx&&S.dx.mode==='obs'&&F[f]&&!X.obs)return false;try{return !X.req||X.req(A)}catch(e){return false}}
+function safety(A){const out=[];const D=S.dx||{};KB.SAFETY.forEach(r=>{try{if(r.when(A,S)){let u=typeof r.urg==='function'?r.urg(A):r.urg,pend=null;
+  const need=(r.confirm||[]).filter(f=>A[f]===undefined&&!(D.asked||[]).includes(f)&&confirmable(f,A));
+  if(r.down&&(!need.length||D.done)){const d=r.down(A);if(d)u=lvMin(u,d)} // zníženie až po zodpovedaní kontrolných otázok
+  if((u==='red'||u==='urgent')&&!r.now&&!D.done){
+   if(u==='red'&&(need.length||(D.n||0)<(r.minQ===undefined?2:r.minQ))){pend=need;u='urgent'}else if(need.length)pend=need}
+  out.push({...r,u,pend})}}catch(e){}});return out}
 function verdict(){
  const A=S.dx.A,R=ranked(A),sf=safety(A);
  let lv=S.dx.chokeDone?(S.log.some(x=>/stlačenia brucha/.test(x.txt))?'orange':'yellow'):'green';sf.forEach(r=>lv=lvMax(lv,r.u));
- R.forEach(({c,p})=>{if(c.id==='other')return;const u=urgOf(c,A);if(p>=.25||(u==='red'&&p>=.15))lv=lvMax(lv,u)});
+ R.forEach(({c,p})=>{if(c.id==='other')return;const u=urgOf(c,A);if(p>=.25||(u==='red'&&p>=.15))lv=lvMax(lv,(u==='red'&&!(p>=.35&&((S.dx.n||0)>=3||S.dx.done)))?'urgent':u)});
  return{lv,R,sf};
 }
 function reasons(c,A){const pro=[],con=[];
