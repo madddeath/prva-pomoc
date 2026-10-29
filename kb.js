@@ -12,7 +12,7 @@
    SAFETY= bezpečnostné pravidlá nezávislé od diagnózy (minimálna naliehavosť + okamžitý pokyn).
    ===================================================================== */
 const KB = {
-version: '0.14',
+version: '0.15',
 
 /* ---------- ZDROJE ---------- */
 REFS: {
@@ -60,9 +60,9 @@ FIND: {
  headache:{q:.15,t:'Silná bolesť hlavy',obs:0,ico:'🤕',ask:'Má silnú bolesť hlavy?'},
  headache_sudden:{rf:1,q:.05,t:'Náhla prudká bolesť hlavy („najhoršia v živote“)',obs:0,ico:'🤯',ask:'Prišla bolesť hlavy úplne náhle, ako úder – „najhoršia v živote“?',req:A=>A.headache===true},
  migraine_known:{q:.15,t:'Podobné bolesti hlavy mával už predtým',obs:0,ico:'🔁',ask:'Mával už predtým presne takéto bolesti hlavy (napr. migrénu)?',req:A=>A.headache===true},
- neck_stiff:{rf:1,q:.03,t:'Stuhnutý krk',obs:0,ico:'🧣',ask:'Má stuhnutý krk – nedokáže sa bradou dotknúť hrudníka?',req:A=>A.headache===true||A.fever===true||A.confusion===true},
+ neck_stiff:{rf:1,q:.03,t:'Stuhnutý krk',obs:0,ico:'🧣',ask:'Dokáže sa bradou dotknúť hrudníka (bez veľkej bolesti)?',inv:1,yes:'Áno, dotkne sa',no:'Nie, krk je stuhnutý',req:A=>A.headache===true||A.confusion===true||A.drowsy===true||A.photophobia===true||((A.age==='child')&&A.fever===true&&(A.vomiting===true||A.poor_feeding===true))},
  photophobia:{q:.05,t:'Prekáža mu svetlo',obs:0,ico:'💡',ask:'Prekáža mu svetlo, privára oči?',req:A=>A.headache===true},
- rash_petechiae:{rf:1,q:.02,t:'Drobné fialové bodky, ktoré nezblednú pod pohárom',obs:1,ico:'🔴',ask:'Má na koži drobné červeno-fialové bodky alebo škvrny, ktoré nezblednú, keď na ne pritlačíš pohár?',req:A=>(A.fever===true||A.temp==='hot'||A.temp==='vhot')&&(A.age==='infant'||A.age==='child'||['headache','confusion','drowsy','neck_stiff','vomiting','weakness','skin','infant_floppy','poor_feeding'].some(f=>A[f]===true))},
+ rash_petechiae:{rf:1,q:.02,t:'Drobné fialové bodky, ktoré nezblednú pod pohárom',obs:1,ico:'🔴',ask:'Má na koži drobné červeno-fialové bodky alebo škvrny, ktoré nezblednú, keď na ne pritlačíš pohár?',req:A=>(A.fever===true||A.temp==='hot'||A.temp==='vhot')&&(A.age==='infant'||A.age==='child'||['headache','confusion','drowsy','neck_stiff','skin','infant_floppy','poor_feeding'].some(f=>A[f]===true))},
  vertigo:{q:.08,t:'Točenie hlavy (svet sa točí)',obs:0,ico:'🌀',ask:'Točí sa mu svet – závrat ako na kolotoči?'},
  vertigo_positional:{rf:1,q:.3,t:'Závrat len pri pohybe hlavou, krátko',obs:0,ico:'↪️',ask:'Príde závrat len pri pohybe hlavou (otočenie na posteli, zaklonenie) a trvá menej ako minútu?',req:A=>A.vertigo===true},
  seizure:{q:.07,t:'Kŕče',obs:1,ico:'⚡',ask:'Mal kŕče – zášklby tela, ktoré nevedel ovládať, alebo celé telo stuhlo?'},
@@ -121,7 +121,7 @@ FIND: {
  drug_use:{q:.04,t:'Drogy / silné lieky proti bolesti, striekačky',obs:1,ico:'💉',ask:'Užíva drogy alebo silné lieky proti bolesti (opioidy)?',hint:'Všimni si striekačky alebo náplasti s liekom na koži.'},
  pupils_pinpoint:{rf:1,q:.03,t:'Drobné zreničky',obs:1,ico:'⚫',ask:'Má zreničky drobné ako špendlíková hlavička?',req:A=>A.drowsy===true||A.breath_slow===true||A.drug_use===true||A.confusion===true},
  alcohol:{q:.08,t:'Zápach alkoholu',obs:1,ico:'🍺',ask:'Cítiť z neho alkohol?'},
- co_source:{disp:A=>true,rf:1,q:.06,t:'Plynový ohrievač / kotol / krb / motor v miestnosti',obs:1,ico:'🔥',ask:'Je v miestnosti plynový ohrievač, kotol, karma, krb, gril alebo bežiaci motor?',req:A=>(['headache','confusion','drowsy','fainted','vertigo'].some(f=>A[f]===true)&&['headache','nausea','vomiting','confusion','drowsy','fainted','weakness','vertigo'].filter(f=>A[f]===true).length>=2)||A.co_multiple===true},
+ co_source:{disp:A=>true,rf:1,q:.06,t:'Plynový ohrievač / kotol / krb / motor v miestnosti',obs:1,ico:'🔥',ask:'Je v miestnosti plynový ohrievač, kotol, krb, gril alebo bežiaci motor?',req:A=>(['headache','confusion','drowsy','fainted','vertigo'].some(f=>A[f]===true)&&['headache','nausea','vomiting','confusion','drowsy','fainted','weakness','vertigo'].filter(f=>A[f]===true).length>=2)||A.co_multiple===true},
  co_multiple:{q:.02,t:'Podobné ťažkosti má viac ľudí v miestnosti',obs:1,ico:'👥',ask:'Majú podobné ťažkosti (bolesť hlavy, nevoľnosť, ospalosť) aj ďalší ľudia alebo zvieratá v tej istej miestnosti?',req:A=>A.co_source===true||A.headache===true},
  hot_env:{q:.05,t:'Pobyt v horúčave / námaha v teple',obs:1,ico:'☀️',ask:'Bol v horúčave, na slnku alebo pri veľkej námahe v teple?'},
  cold_env:{q:.04,t:'Pobyt v chlade / vo vode',obs:1,ico:'❄️',ask:'Bol dlhšie v chlade alebo vo vode a je na dotyk studený?'},
@@ -203,7 +203,7 @@ FIND: {
  homemade_alcohol:{rf:1,q:.02,t:'Pil podomácky pálený alkohol / neznámu tekutinu',obs:1,ico:'🍶',ask:'Pil podomácky pálený alkohol alebo neznámu tekutinu z fľaše bez etikety?',req:A=>A.alcohol===true||A.vision===true||A.ingestion===true},
  stimulant:{rf:1,q:.03,prio:A=>(A.psychosis===true||A.drug_use===true)?.6:0,t:'Mohol užiť povzbudzujúce drogy (kokaín, pervitín, extáza)',obs:1,ico:'⚡',ask:'Mohol užiť povzbudzujúce drogy (kokaín, pervitín, extáza)?',req:A=>A.drug_use===true||A.psychosis===true||(A.age==='young'&&(A.chest_pain===true||A.palpitations===true||A.seizure===true||A.hot_env===true))},
  caustic:{disp:A=>true,rf:1,q:.02,t:'Mohol vypiť lúh / kyselinu / čistiaci prostriedok',obs:1,ico:'⚗️',ask:'Mohol vypiť lúh, kyselinu alebo čistiaci prostriedok (pálenie v ústach, slinenie, bolesť pri prehĺtaní)?',req:A=>A.ingestion===true||A.drooling===true},
- hernia_lump:{disp:A=>true,rf:1,q:.03,t:'Tvrdá bolestivá bulka v slabine / pri pupku, nedá sa vtlačiť',obs:0,ico:'🔴',ask:'Má v slabine alebo pri pupku tvrdú, bolestivú bulku, ktorá sa nedá vtlačiť späť?',req:A=>A.abd_pain===true||A.vomiting===true},
+ hernia_lump:{disp:A=>true,q:.03,t:'Tvrdá bolestivá bulka v slabine / pri pupku, nedá sa vtlačiť',obs:0,ico:'🔴',ask:'Má v slabine alebo pri pupku tvrdú, bolestivú bulku, ktorá sa nedá vtlačiť späť?',req:A=>A.abd_pain===true&&A.abd_rlq!==true&&A.abd_ruq!==true&&A.abd_epi_back!==true&&A.flank_colic!==true},
  food_stuck:{disp:A=>true,q:.03,t:'Zaseknuté sústo – nevie prehltnúť ani sliny',obs:1,ico:'🍖',ask:'Zaseklo sa mu sústo – cíti sústo za hrudnou kosťou a nevie prehltnúť ani sliny (ale dýcha)?',req:A=>A.drooling===true||A.chest_pain===true||A.vomiting===true},
  foreign_body:{disp:A=>A.age==='infant'||A.age==='child',q:.04,t:'Cudzie teleso v nose alebo uchu',obs:1,ico:'🫘',ask:'Strčilo si niečo do nosa alebo ucha?',req:A=>(A.age==='child'||A.age==='infant')&&['nosebleed','ear_pain','cough','stridor','wheeze','dyspnea','drooling'].some(f=>A[f]===true)},
  chest_trauma:{disp:A=>true,q:.05,t:'Úder do hrudníka / stlačenie hrudníka',obs:1,ico:'💥',ask:'Udrel sa do hrudníka alebo ho niečo stlačilo (nehoda, pád)?',req:A=>A.mvc===true||A.fall===true||((A.dyspnea===true||A.chest_pain===true)&&A.age!=='senior')},
@@ -766,7 +766,7 @@ COND: [
   ev:{colic_cry:.9,fever:.01,vomiting:.1,poor_feeding:.05,drowsy:.01},
   vars:{age:[1,0,0,0,0]},
   aid:['Nos ho, hojdaj, upokojuj; pomáha teplo na bruško.','Ak plač znie inak ako zvyčajne, má horúčku, zvracia alebo nepije → lekár.','Ak si vyčerpaný, polož dieťa do postieľky a daj si chvíľu pauzu – nikdy ním netras.']},
- {id:'brue',name:'Dojča na chvíľu prestalo dýchať / zmodralo',prior:.003,urg:A=>(A.infant_floppy||A.fast_breath||A.infant_breath||A.drowsy||A.brue_ongoing)?'red':'urgent',src:['EST'],
+ {id:'brue',name:'Dojča na chvíľu prestalo dýchať / zmodralo',prior:.003,urg:A=>(A.infant_floppy||A.fast_breath||A.infant_breath||A.drowsy)?'red':'urgent',src:['EST'],
   ev:{brue:.95,cough:.3,vomiting:.2,fever:.15,young_infant:.5},
   vars:{age:[1,0,0,0,0]},
   aid:['Volaj 155, aj keď je teraz v poriadku.','Ak nedýcha normálne → resuscitácia dojčaťa (5 vdychov, potom 30 stlačení dvoma prstami : 2 vdychy).']},
@@ -1140,7 +1140,7 @@ ALERTS: {
  conf:{t:'Náhla zmätenosť',ico:'😵‍💫',q:'Náhla zmena správania alebo zmätenosť môže znamenať mozgovú príhodu, nízky cukor, otravu alebo vážnu infekciu. Volaj 155. Pokračuj v otázkach – pomôžu záchranárom.'},
  generic:{t:'Volaj 155',ico:'🚑',q:'Tento stav vyžaduje záchranku. Volaj 155 a riaď sa pokynmi operátora.'},
  infantfever:{t:'Horúčka u dojčaťa do 3 mesiacov',ico:'👶',q:'Dojča mladšie ako 3 mesiace s teplotou 38 °C a viac musí čo najskôr vyšetriť lekár. Volaj 155 alebo ihneď choď na detskú pohotovosť. Neprehrievaj ho, dojči.'},
- airway:{t:'Zúžené dýchacie cesty',ico:'📢',q:'Volaj 155. Upokoj ho, nech sedí v polohe, ktorá mu vyhovuje (dieťa na rukách rodiča). Nepozeraj mu do hrdla, nič mu nedávaj do úst. Ak má adrenalínové pero a ide o alergiu, použi pero.'},
+ airway:{t:'Zúžené dýchacie cesty',ico:'📢',q:'Volaj 155. Upokoj ho, nech sedí v polohe, ktorá mu vyhovuje. Nepozeraj mu do hrdla, nič mu nedávaj do úst. Ak má adrenalínové pero a ide o alergiu, použi pero.'},
  croup:{t:'Chrapot pri nádychu',ico:'📢',call:'none',cont:'Pokračovať',q:'Upokoj ho – plač a strach zhoršujú dýchanie. Pomôže chladný vlhký vzduch (otvorené okno). Ak sa dýchanie zhoršuje, slintá, modrá alebo je spavé → volaj 155.'},
  battery:{t:'Prehltnutá batéria / magnetky',ico:'🔋',q:'Volaj 155 – gombíková batéria môže poškodiť pažerák do 2 hodín. Nevyvolávaj zvracanie, nedávaj jesť ani piť. Vezmi obal alebo rovnakú batériu.'},
  torsion:{t:'Náhla bolesť semenníka',ico:'⚡',q:'Môže ísť o pretočenie semenníka, ktoré treba operovať do niekoľkých hodín. Volaj 155 alebo ihneď choď na urgentný príjem. Nech nič neje ani nepije.'},

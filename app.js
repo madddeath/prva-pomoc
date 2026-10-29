@@ -155,20 +155,31 @@ function locLines(){
  const la=LOC.lat.toFixed(5),lo=LOC.lon.toFixed(5);
  return {dec:`${la} N, ${lo} E`,say:`${la.replace('.',',')} severne, ${lo.replace('.',',')} východne`,dms:`${fmtDMS(LOC.lat,'N','S')} ${fmtDMS(LOC.lon,'E','W')}`,acc:Math.round(LOC.acc),addr:LOC.addr};
 }
+let locWatch=null;
+function revGeo(cb){const L0=LOC;if(!L0||L0.err||L0.acc>100){if(L0)L0.addr=null;return}
+ fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=sk&lat=${L0.lat}&lon=${L0.lon}`)
+  .then(r=>r.json()).then(j=>{const a=j.address||{};
+   const hn=(a.house_number||'').split('/').pop(); // „17030/8“ → orientačné číslo 8
+   const street=[a.road||a.pedestrian||a.footway||a.path,hn].filter(Boolean).join(' ');
+   const town=a.city||a.town||a.village||a.municipality||a.hamlet||'';
+   const part=a.suburb||a.city_district||a.quarter||'';
+   const s=[street,part&&part!==town?part:'',town].filter(Boolean).join(', ');
+   if(LOC===L0){LOC.addr=s||null;cb&&cb()}}).catch(()=>{})}
+/* GPS: prvá poloha býva hrubá (z Wi-Fi / siete), preto chvíľu spresňujeme a necháme najpresnejšiu */
 function getLoc(cb){
  if(!('geolocation' in navigator)){LOC={err:'Telefón neposkytuje polohu.'};cb&&cb();return}
- LOC={busy:true};cb&&cb();
- navigator.geolocation.getCurrentPosition(p=>{
-  LOC={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy,addr:null};addLog('a','Poloha GPS zistená');cb&&cb();
-  fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=sk&lat=${LOC.lat}&lon=${LOC.lon}`)
-   .then(r=>r.json()).then(j=>{const a=j.address||{};
-    const street=[a.road||a.pedestrian||a.footway||a.path,a.house_number].filter(Boolean).join(' ');
-    const town=a.city||a.town||a.village||a.municipality||a.hamlet||'';
-    const part=a.suburb||a.city_district||a.quarter||'';
-    const s=[street,part&&part!==town?part:'',town].filter(Boolean).join(', ');
-    if(LOC&&!LOC.err){LOC.addr=s||null;cb&&cb()}}).catch(()=>{});
- },e=>{LOC={err:e.code===1?'Prístup k polohe je zakázaný – povoľ ho v nastaveniach prehliadača.':'Polohu sa nepodarilo zistiť (skús vonku alebo zapni GPS).'};cb&&cb()},
- {enableHighAccuracy:true,timeout:20000,maximumAge:30000});
+ if(locWatch!==null){try{navigator.geolocation.clearWatch(locWatch)}catch(e){}}
+ LOC={busy:true};cb&&cb();const t0=Date.now();let best=null,geoT=null;
+ const stop=()=>{if(locWatch!==null){navigator.geolocation.clearWatch(locWatch);locWatch=null}if(LOC&&LOC.refining){LOC.refining=false;cb&&cb()}};
+ locWatch=navigator.geolocation.watchPosition(p=>{const c=p.coords;
+  if(best&&c.accuracy>=best.acc)return;
+  best={lat:c.latitude,lon:c.longitude,acc:c.accuracy,addr:null,refining:c.accuracy>25&&Date.now()-t0<15000};
+  if(!LOC||LOC.busy)addLog('a','Poloha GPS zistená');LOC=best;cb&&cb();
+  clearTimeout(geoT);geoT=setTimeout(()=>revGeo(cb),800);
+  if(c.accuracy<=25)stop();
+ },e=>{if(best){stop();return}LOC={err:e.code===1?'Prístup k polohe je zakázaný – povoľ ho v nastaveniach prehliadača.':'Polohu sa nepodarilo zistiť (zapni GPS alebo skús vonku).'};stop();cb&&cb()},
+ {enableHighAccuracy:true,timeout:20000,maximumAge:0});
+ setTimeout(stop,15000);
 }
 function keyFindings(){
  const A=S.dx.A,soft=S.dx.soft||{};
@@ -207,7 +218,7 @@ function briefCard(opts={}){
   if(!LOC)loc=`<button class="chip" data-loc>📍 Zistiť moju polohu</button>`;
   else if(LOC.busy)loc='Zisťujem polohu…';
   else if(l.err)loc=esc(l.err)+` <button class="chip" data-loc>Skúsiť znova</button>`;
-  else loc=`${l.addr?'<b>'+esc(l.addr)+'</b><br>':''}<span class="gps">${l.say}</span>${l.acc>100?' <span class="small">(nepresné – opíš aj okolie)</span>':''}<br><a class="chip" target="_blank" href="https://maps.google.com/?q=${LOC.lat.toFixed(5)},${LOC.lon.toFixed(5)}">🗺️ Mapa</a>`;
+  else loc=`${l.addr?'<b>'+esc(l.addr)+'</b>'+(l.acc>30?' <span class="small">(približne)</span>':'')+'<br>':''}<span class="gps">${l.say}</span>${LOC.refining?' <span class="small">(spresňujem… ±'+l.acc+' m)</span>':(l.acc>50?' <span class="small">(nepresné ±'+l.acc+' m – adresu over, opíš aj okolie)</span>':'')}<br><a class="chip" target="_blank" href="https://maps.google.com/?q=${LOC.lat.toFixed(5)},${LOC.lon.toFixed(5)}">🗺️ Mapa</a>`;
   c.innerHTML=`<h2>📞 Čo povedať do telefónu</h2>
    ${row('📍 Kde',loc)}
    ${row('👤 Kto',esc(gx(b.who)))}
