@@ -59,8 +59,8 @@ function pickNext(){
  for(const v in V){if(v==='age'||v==='sex'||!eligible(v,true))continue;const sc=igVar(Pf,v)+prioOf(V[v],A);if(sc>bs){bs=sc;best={kind:'var',id:v,sc}}}
  if(!best)return null;
  let lvNow='green';safety(A).forEach(r=>lvNow=lvMax(lvNow,r.u));
- const top=Math.max(...P),maxQ=20+D.extra; // pýtame sa až do vyčerpania užitočných otázok (appka je pre nejasné prípady)
- if(D.n>=maxQ+5)return null; // tvrdý strop vrátane varovných a kontrolných otázok
+ const top=Math.max(...P),maxQ=18+D.extra; // pýtame sa až do vyčerpania užitočných otázok (appka je pre nejasné prípady)
+ if(D.n>=maxQ+4)return null; // tvrdý strop vrátane varovných a kontrolných otázok
  if(best.sc<2){ // prio>=2 = vynútená otázka
   const stop=D.n>=maxQ||(D.n>=8&&top>.92)||(D.n>=3&&best.sc<.02);
   if(stop)return rf||recheck(P); // pred ukončením: zostávajúce varovné otázky, potom kontrola prehliadnutých
@@ -75,7 +75,7 @@ function recheck(P){const D=S.dx,A=D.A;if(!D.soft)return null;
   const old=A[f];A[f]=true;let lv='green';safety(A).forEach(r=>lv=lvMax(lv,r.u));A[f]=old;
   const gain=LV.indexOf(lv)-LV.indexOf(cur);if(gain<=0)continue;
   let py=0;C.forEach((c,i)=>py+=P[i]*pf(c,f));const sc=py*gain;
-  const thr=(D.cats&&KB.CATS&&KB.CATS.some(c=>D.cats.includes(c.id)&&c.items.includes(f)))?.03:.1; // príznak z vybranej oblasti, ktorý by zvýšil naliehavosť – radšej sa opýtať
+  const thr=(D.cats&&KB.CATS&&KB.CATS.some(c=>D.cats.includes(c.id)&&c.items.includes(f)))?.06:.15; // príznak z vybranej oblasti, ktorý by zvýšil naliehavosť – radšej sa opýtať
   if(py>=thr&&sc>bs){bs=sc;best={kind:'bool',id:f,sc,recheck:true}}}
  return best;
 }

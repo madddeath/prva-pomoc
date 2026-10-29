@@ -14,7 +14,7 @@ const GPH=[['bledý, studený a spotený','bledá, studená a spotená'],['na do
 const GW={bol:'bola',mal:'mala',mohol:'mohla',mával:'mávala',odpadol:'odpadla',spadol:'spadla',udrel:'udrela',zlepšil:'zlepšila',bledý:'bledá',bodnutý:'bodnutá',nehybný:'nehybná',
  ospalý:'ospalá',opretý:'opretá',pil:'pila',pokúsil:'pokúsila',pomočil:'pomočila',prebral:'prebrala',rozrušený:'rozrušená',samého:'samú',slabý:'slabá',spotený:'spotená',
  unavený:'unavená',užil:'užila',vystrašený:'vystrašená',zjedol:'zjedla',zmätený:'zmätená',zranil:'zranila',zvracal:'zvracala',topil:'topila',spavý:'spavá',horúci:'horúca',
- ho:'ju',jeho:'jej',mu:'jej',neho:'nej',ním:'ňou',ňom:'nej',prebudil:'prebudila',vymočil:'vymočila'};
+ ho:'ju',jeho:'jej',mu:'jej',neho:'nej',ním:'ňou',ňom:'nej',prebudil:'prebudila',vymočil:'vymočila',nevedel:'nevedela',prestal:'prestala',ležal:'ležala',vyvrtol:'vyvrtla',nemal:'nemala',stal:'stala',pichol:'pichla',vdýchol:'vdýchla',prehltol:'prehltla',operovaný:'operovaná',pocítil:'pocítila',prekonal:'prekonala',pokrytý:'pokrytá',vytiahnutý:'vytiahnutá',neprechladol:'neprechladla',dostal:'dostala',podchladený:'podchladená',prebuditeľný:'prebuditeľná',prehriaty:'prehriata',agresívny:'agresívna'};
 const GRX=new RegExp('(^|[^\\p{L}])('+Object.keys(GW).map(w=>w+'|'+w[0].toUpperCase()+w.slice(1)).join('|')+')(?![\\p{L}])','gu');
 function gx(s){if(!s||typeof S==='undefined'||!S.dx||S.dx.A.sex!=='f')return s;let t=String(s);
  GPH.forEach(([m,f])=>{t=t.split(m).join(f)});
